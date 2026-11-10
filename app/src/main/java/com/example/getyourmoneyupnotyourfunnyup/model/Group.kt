@@ -27,5 +27,7 @@ data class Group(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val members: List<GroupMember> = emptyList(),
-    val syncStatus: SyncStatus = SyncStatus.SYNCED
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+    /** Index into the group colour palette; picked once at creation and used everywhere. */
+    val colorIndex: Int = 0
 )

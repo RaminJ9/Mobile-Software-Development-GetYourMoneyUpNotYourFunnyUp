@@ -42,6 +42,9 @@ class AuthRepository(
     val currentAuthEmail: String?
         get() = auth.currentUser?.email
 
+    val currentAuthDisplayName: String?
+        get() = auth.currentUser?.displayName
+
     fun observeUser(userId: String): Flow<User?> =
         userDao.observeUserById(userId).map { it?.toDomain() }
 
@@ -324,6 +327,13 @@ class AuthRepository(
 
     fun signOut() {
         auth.signOut()
+    }
+
+    /** Sends Firebase's password reset email ("Forgot password?" and Profile → "Change password"). */
+    fun sendPasswordReset(email: String, onResult: (Result<Unit>) -> Unit) {
+        auth.sendPasswordResetEmail(email.trim())
+            .addOnSuccessListener { onResult(Result.success(Unit)) }
+            .addOnFailureListener { error -> onResult(Result.failure(error)) }
     }
 
     private fun User.toFirestoreMap(): Map<String, Any?> = mapOf(
