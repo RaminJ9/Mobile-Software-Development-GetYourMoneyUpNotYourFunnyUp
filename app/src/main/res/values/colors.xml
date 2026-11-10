@@ -1,10 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
+    <!-- Green – positive & primary -->
+    <color name="green_700">#FF1E6B45</color>
+    <color name="green_800">#FF14502F</color>
+    <color name="green_600">#FF2A5A3F</color>
+    <color name="green_500">#FF3FA36B</color>
+    <color name="green_300">#FF8FD6AA</color>
+    <color name="green_200">#FFC6E8D2</color>
+    <color name="green_100">#FFDDF3E4</color>
+    <color name="green_50">#FFEEF9F1</color>
+
+    <!-- Red – only for money you owe -->
+    <color name="red_700">#FFA93A2F</color>
+    <color name="red_800">#FF8E3128</color>
+    <color name="red_300">#FFF4B9B2</color>
+    <color name="red_200">#FFF6D3CE</color>
+    <color name="red_100">#FFFCE4E1</color>
+    <color name="red_50">#FFFDF1EF</color>
+
+    <!-- Ink & surfaces -->
+    <color name="ink_900">#FF17201B</color>
+    <color name="ink_700">#FF3D4842</color>
+    <color name="ink_600">#FF56635B</color>
+    <color name="ink_400">#FF7A857F</color>
+    <color name="line">#FFE6EBE8</color>
+    <color name="line_soft">#FFEEF1EF</color>
+    <color name="surface">#FFF1F4F2</color>
+    <color name="surface_soft">#FFF4F7F5</color>
+
+    <!-- Amber – warnings & waiting to sync -->
+    <color name="amber_800">#FF6E4500</color>
+    <color name="amber_400">#FFF0C870</color>
+    <color name="amber_100">#FFFFF4DC</color>
+
+    <!-- Group colours -->
+    <color name="group_blue">#FFA9C8F5</color>
+    <color name="group_lavender">#FFC9B6F0</color>
+    <color name="group_peach">#FFF7C59F</color>
+    <color name="group_butter">#FFF3DE8A</color>
+    <color name="group_teal">#FF9ED9D2</color>
+    <color name="group_sand">#FFE2CDB0</color>
+    <color name="group_sky">#FFB9DCEB</color>
+    <color name="group_lilac">#FFE4CBE9</color>
+    <color name="group_apricot">#FFF2D7B6</color>
+
+    <!-- Legacy / standard aliases -->
+    <color name="purple_200">#FF8FD6AA</color>
+    <color name="purple_500">#FF1E6B45</color>
+    <color name="purple_700">#FF14502F</color>
+    <color name="teal_200">#FF9ED9D2</color>
+    <color name="teal_700">#FF3FA36B</color>
+    <color name="black">#FF17201B</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
