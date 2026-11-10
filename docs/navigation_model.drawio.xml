@@ -1,377 +1,449 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net">
-  <diagram name="Side-1" id="IfphKqo8_YTeKvrl1WQr">
-    <mxGraphModel dx="2208" dy="1471" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
+  <diagram name="Navigation Model (Aligned with HiFi)" id="IfphKqo8_YTeKvrl1WQr">
+    <mxGraphModel dx="2400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-80" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-37" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;startArrow=ERone;startFill=0;" target="cE56ys2-FrZHt1rxKAFG-78">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="1170" y="40" as="targetPoint" />
-          </mxGeometry>
+
+        <!-- =================================================================== -->
+        <!-- AUTHENTICATED SHELL BOUNDARY ("Is user logged in · 5-Tab Bottom Nav") -->
+        <!-- =================================================================== -->
+        <mxCell id="auth-boundary" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#56635B;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="20" y="-520" width="2120" height="1220" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-114" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-80" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Confirm" vertex="1">
-          <mxGeometry relative="1" x="-0.301" y="-3" as="geometry">
-            <mxPoint x="16" y="-5" as="offset" />
-          </mxGeometry>
+        <mxCell id="auth-boundary-label" value="Is user logged in · Authenticated Shell (5-Tab Bottom Navigation: Home · Groups · Scan · Activity · Profile)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;rounded=0;fillColor=none;fontStyle=1;fontSize=14;fontColor=#17201B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="-510" width="780" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-72" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-6">
-          <mxGeometry relative="1" x="-0.1323" as="geometry" />
+
+        <!-- =================================================================== -->
+        <!-- 1. AUTHENTICATION & ONBOARDING (OUTSIDE BOUNDARY, LEFT)             -->
+        <!-- =================================================================== -->
+        <mxCell id="s1-login" value="&lt;b&gt;S1 · Log in&lt;/b&gt;&lt;br&gt;Welcome back&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(Email, password, show/hide, forgot pw)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#17201B;" vertex="1" parent="1">
+          <mxGeometry x="-260" y="20" width="190" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-15" parent="1" style="whiteSpace=wrap;html=1;fillColor=none;dashed=1;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="" vertex="1">
-          <mxGeometry height="840" width="1449" x="-11" y="-365" as="geometry" />
+
+        <mxCell id="s2-register" value="&lt;b&gt;S2 · Create account&lt;/b&gt;&lt;br&gt;Split bills, stay friends&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(Full name, email, phone, password)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#17201B;" vertex="1" parent="1">
+          <mxGeometry x="-260" y="-130" width="190" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-16" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="cE56ys2-FrZHt1rxKAFG-4">
-          <mxGeometry relative="1" x="-0.5462" as="geometry" />
+
+        <mxCell id="s-logout" value="&lt;b&gt;Logout&lt;/b&gt;&lt;br&gt;End session" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="-240" y="-420" width="150" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-18" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-1" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-2">
+
+        <!-- Edges: Auth -->
+        <mxCell id="edge-login-register" value="Switch mode" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s1-login" target="s2-register">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="&lt;div&gt;S1&lt;/div&gt;Login" vertex="1">
-          <mxGeometry height="60" width="120" x="-217" y="10" as="geometry" />
+
+        <mxCell id="edge-login-home" value="Log in" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s1-login" target="s3-home">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="PEIUMIcMmU4SpWndcCpz-5" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;strokeWidth=1;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-4">
-          <mxGeometry relative="1" x="-0.4587" as="geometry">
+
+        <mxCell id="edge-register-home" value="Create account" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s2-register" target="s3-home">
+          <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="-38.4" y="-65" />
-              <mxPoint x="-38.4" y="25" />
+              <mxPoint x="-20" y="-92" />
+              <mxPoint x="-20" y="40" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="S2&lt;br&gt;&lt;div&gt;Registration&amp;nbsp;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="-217" y="-95" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-8" edge="1" parent="1" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-6">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="350" y="40" as="sourcePoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-24" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;labelBackgroundColor=default;" value="Press on group" vertex="1">
-          <mxGeometry relative="1" x="-0.1432" as="geometry">
-            <mxPoint x="-93" y="-1" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-11" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-4" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-5">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-23" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-11" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;labelBackgroundColor=default;" value="click view profile" vertex="1">
-          <mxGeometry relative="1" x="-0.0762" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-70" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-68">
-          <mxGeometry relative="1" x="-0.2613" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-75" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-4" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-74">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-77" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-75" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press Add group" vertex="1">
-          <mxGeometry relative="1" x="-0.055" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-98" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-69">
-          <mxGeometry relative="1" x="-0.0014" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S3&lt;/div&gt;View groups" vertex="1">
-          <mxGeometry height="60" width="120" x="31" y="10" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="&lt;div&gt;S&lt;/div&gt;View profile" vertex="1">
-          <mxGeometry height="60" width="120" x="31" y="-161" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-26" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-6" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-25">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-27" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-26" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press add expense" vertex="1">
-          <mxGeometry relative="1" x="-0.0559" y="-2" as="geometry">
-            <mxPoint x="-1" y="-3" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-33" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-28">
-          <mxGeometry relative="1" x="0.4001" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-45" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-33" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press view members" vertex="1">
-          <mxGeometry relative="1" x="0.3754" as="geometry">
-            <mxPoint y="55" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-47" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=-0.045;entryY=0.511;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-46">
-          <mxGeometry relative="1" x="-0.1634" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-48" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-47" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press Pay" vertex="1">
-          <mxGeometry relative="1" x="-0.2211" y="-1" as="geometry">
-            <mxPoint x="1" y="-26" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-50" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-6" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-49">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-51" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-50" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press on expense" vertex="1">
-          <mxGeometry relative="1" x="0.0233" y="-1" as="geometry">
-            <mxPoint x="1" y="46" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-96" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;endArrow=none;endFill=0;">
-          <mxGeometry relative="1" x="0.0849" as="geometry">
-            <Array as="points">
-              <mxPoint x="467" y="-116.8" />
-              <mxPoint x="421.8" y="-116.8" />
-            </Array>
-            <mxPoint x="467.03" y="-6" as="sourcePoint" />
-            <mxPoint x="421.83" y="-194.98" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S&lt;/div&gt;View group" vertex="1">
-          <mxGeometry height="60" width="120" x="430" y="10" as="geometry" />
-        </mxCell>
-        <mxCell id="PEIUMIcMmU4SpWndcCpz-7" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="cE56ys2-FrZHt1rxKAFG-1">
+
+        <mxCell id="edge-logout-login" value="Return to login" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s-logout" target="s1-login">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="-265.1" y="-320" />
-              <mxPoint x="-265.1" y="40" />
+              <mxPoint x="-300" y="-390" />
+              <mxPoint x="-300" y="58" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="Logout" vertex="1">
-          <mxGeometry height="60" width="120" x="-217" y="-350" as="geometry" />
+
+        <!-- =================================================================== -->
+        <!-- 2. PROFILE & SETTINGS TAB (TOP LEFT INSIDE BOUNDARY)                -->
+        <!-- =================================================================== -->
+        <mxCell id="s7-profile" value="&lt;b&gt;S7 · Profile &amp;amp; settings&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• &quot;Never charge me for&quot; (Alcohol, Meat)&lt;br&gt;• &quot;Notify me about&quot; (4 switches)&lt;br&gt;• Change password / Log out&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="80" y="-430" width="230" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-22" parent="1" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;rounded=0;fillColor=none;fontStyle=1" value="Is user logged in" vertex="1">
-          <mxGeometry height="30" width="110" x="1" y="-360" as="geometry" />
+
+        <mxCell id="s7-edit-profile" value="&lt;b&gt;S7-edit · Edit profile&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Full name, email, phone, photo&lt;br&gt;(Cancel / Save changes)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="390" y="-425" width="190" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-35" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-25" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-106">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="787" y="-50" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-36" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-35" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press add receipt&amp;nbsp;" vertex="1">
-          <mxGeometry relative="1" x="-0.2286" y="1" as="geometry">
-            <mxPoint x="1" y="-8" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-38" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-25" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-37">
+
+        <mxCell id="edge-home-profile" value="Bottom Nav: Profile" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s7-profile">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-39" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-38" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Press Next&amp;nbsp;" vertex="1">
-          <mxGeometry relative="1" x="-0.0234" y="-2" as="geometry">
-            <mxPoint x="-2" y="-4" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-25" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S&lt;/div&gt;Add expense view" vertex="1">
-          <mxGeometry height="60" width="120" x="727" y="10" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-63" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-28" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-61">
+
+        <mxCell id="edge-profile-edit" value="Press Edit / Save / Cancel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s7-profile" target="s7-edit-profile">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-65" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-63" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;labelBackgroundColor=none;" value="Press add member" vertex="1">
-          <mxGeometry relative="1" x="0.2479" y="-3" as="geometry">
-            <mxPoint x="-30" y="-7" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-28" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;shadow=0;multiple=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;div&gt;S&lt;/div&gt;View group members" vertex="1">
-          <mxGeometry height="60" width="120" x="476" y="-225" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-67" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-31" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-66">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="914" y="-308.0000000000001" as="sourcePoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-94" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-67" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Take picure" vertex="1">
-          <mxGeometry relative="1" x="-0.0777" as="geometry">
-            <mxPoint y="-3" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-31" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;Camera view&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="727" y="-328" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-41" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;exitPerimeter=0;" target="cE56ys2-FrZHt1rxKAFG-43">
-          <mxGeometry relative="1" x="-0.1546" as="geometry">
-            <Array as="points">
-              <mxPoint x="1260" y="30" />
-              <mxPoint x="1260" y="-40" />
-            </Array>
-            <mxPoint x="1227" y="39.989999999999995" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-37" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;Select group member&#39;s share view&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="967" y="10" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-43" parent="1" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=17;verticalAlign=top;align=center;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Notify group members" vertex="1">
-          <mxGeometry height="80" width="80" x="1320" y="-80" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-84" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-85" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;exitPerimeter=0;" target="cE56ys2-FrZHt1rxKAFG-83">
-          <mxGeometry relative="1" x="0.0008" as="geometry">
-            <mxPoint x="820" y="195" as="sourcePoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-90" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-83" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-89">
+
+        <mxCell id="edge-profile-logout" value="Press Log out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s7-profile" target="s-logout">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-46" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;View payment share&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="590" y="140" as="geometry" />
+
+        <!-- =================================================================== -->
+        <!-- 3. ACTIVITY TAB (GLOBAL FEED, TOP-CENTER LEFT)                      -->
+        <!-- =================================================================== -->
+        <mxCell id="s6-activity" value="&lt;b&gt;S6 · Activity tab (Global feed)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Filters: All · Needs you · Expenses · Payments&lt;br&gt;Sections: Today · Yesterday · Earlier&lt;br&gt;+ Mark all as read&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="390" y="-290" width="240" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-118" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-49" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;dashed=1;" target="cE56ys2-FrZHt1rxKAFG-117">
-          <mxGeometry relative="1" as="geometry" />
+
+        <mxCell id="s6-inline-actions" value="&lt;b&gt;S6-action · Inline Feed Actions&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Reminder: Pay X kr → Cancel / Confirm → Paid&lt;br&gt;• Sync failed: Try now → Syncing… → Synced&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="690" y="-285" width="240" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-119" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-118" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="(expense owner) press &quot;Remove&quot;" vertex="1">
-          <mxGeometry relative="1" x="-0.0054" y="1" as="geometry">
-            <mxPoint x="9" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-49" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=1;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;View expense&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="400" y="250" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-59" parent="1" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=17;verticalAlign=top;align=center;fillColor=#e1d5e7;strokeColor=#9673a6;" value="" vertex="1">
-          <mxGeometry height="80" width="80" x="890" y="220" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-116" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-61" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-115">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-61" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=0;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;div&gt;S&lt;/div&gt;Add member view" vertex="1">
-          <mxGeometry height="60" width="120" x="238" y="-225" as="geometry" />
-        </mxCell>
-        <mxCell id="PEIUMIcMmU4SpWndcCpz-4" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-66" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="cE56ys2-FrZHt1rxKAFG-37">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-66" parent="1" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=17;verticalAlign=top;align=center;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(#000000, var(--ge-light-color, #ffffff));&quot;&gt;Scan receipt and formulate contents into expence details&lt;/span&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="100" width="90" x="982" y="-348" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-68" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;div&gt;S-empty&lt;/div&gt;No groups found" vertex="1">
-          <mxGeometry height="60" width="120" x="231" y="-131" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-99" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-69" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;endArrow=none;endFill=0;">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="291" y="34.9" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-69" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S-filter&lt;/div&gt;view filtered groups" vertex="1">
-          <mxGeometry height="60" width="120" x="231" y="-41" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-76" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-74" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-6">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-74" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S3&lt;/div&gt;Create group" vertex="1">
-          <mxGeometry height="60" width="120" x="31" y="149" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-82" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-81">
-          <mxGeometry relative="1" x="-0.0014" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-78" parent="1" style="shape=or;whiteSpace=wrap;html=1;shapeInside=1;rotation=-180;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="" vertex="1">
-          <mxGeometry height="40" width="30" x="1190" y="20" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-129" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-81" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;endArrow=none;endFill=0;">
-          <mxGeometry relative="1" x="0.0887" as="geometry">
-            <Array as="points">
-              <mxPoint x="1360" y="100" />
-            </Array>
-            <mxPoint x="930" y="99.90654205607461" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-81" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;Confirmation&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="1300" y="20" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-128" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-83" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" target="cE56ys2-FrZHt1rxKAFG-6">
+
+        <mxCell id="edge-home-activity" value="Bottom Nav: Activity / Bell icon" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s6-activity">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="930" y="100" />
-              <mxPoint x="520" y="100" />
-            </Array>
-            <mxPoint x="870" y="100" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-83" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;Confirmation&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="870" y="130" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-85" parent="1" style="shape=or;whiteSpace=wrap;html=1;shapeInside=1;rotation=-180;fillColor=#e1d5e7;strokeColor=#9673a6;" value="" vertex="1">
-          <mxGeometry height="40" width="30" x="790" y="150" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-86" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-46" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;startArrow=ERone;startFill=0;" target="cE56ys2-FrZHt1rxKAFG-85">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-88" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-86" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Confirm" vertex="1">
-          <mxGeometry relative="1" x="-0.0278" y="2" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-89" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;div&gt;S-Error&lt;/div&gt;&lt;div&gt;Payment failed&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="1060" y="130" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-112" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-91" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-31">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-113" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-112" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="Accept usage" vertex="1">
-          <mxGeometry relative="1" x="-0.3319" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-91" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;div&gt;S-&lt;/div&gt;Ask for Device permission&amp;nbsp;" vertex="1">
-          <mxGeometry height="60" width="120" x="630" y="-200" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-101" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-106" style="edgeStyle=none;curved=1;rounded=0;curveGeometry=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="cE56ys2-FrZHt1rxKAFG-31">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="799.5" y="-90" as="sourcePoint" />
-            <mxPoint x="799.5035971223024" y="-150.0000000000001" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-109" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-101" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="&lt;i&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;(a)&lt;/font&gt;&lt;/i&gt;" vertex="1">
-          <mxGeometry relative="1" x="-0.9292" as="geometry">
-            <mxPoint x="6" y="-3" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-110" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-101" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="&lt;i&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;(b)&lt;/font&gt;&lt;/i&gt;" vertex="1">
-          <mxGeometry relative="1" x="-0.8809523809523808" as="geometry">
-            <mxPoint x="-28" y="21" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-103" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-106" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="cE56ys2-FrZHt1rxKAFG-91">
-          <mxGeometry relative="1" x="0.0096" as="geometry">
-            <mxPoint x="774.5" y="-90.00000000000011" as="sourcePoint" />
-            <mxPoint x="774.5245901639344" y="-150" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-106" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="" vertex="1">
-          <mxGeometry height="40" width="40" x="767" y="-100" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-115" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=0;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;div&gt;S-Error&lt;/div&gt;User does not exist" vertex="1">
-          <mxGeometry height="60" width="120" x="238" y="-328" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-123" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-117" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;dashed=1;" target="cE56ys2-FrZHt1rxKAFG-49">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="360" y="415" />
-              <mxPoint x="360" y="295" />
+              <mxPoint x="250" y="-248" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-125" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-123" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="(cancel)" vertex="1">
-          <mxGeometry relative="1" x="-0.6193" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
+
+        <mxCell id="edge-activity-inline" value="Inline Pay / Try now" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s6-activity" target="s6-inline-actions">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-124" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-117" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;dashed=1;" target="cE56ys2-FrZHt1rxKAFG-49">
+
+        <!-- =================================================================== -->
+        <!-- 4. HOME DASHBOARD & SUB-STATES (CENTER LEFT)                        -->
+        <!-- =================================================================== -->
+        <mxCell id="s3-home" value="&lt;b&gt;S3 · Home (View groups)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Hero Left: &quot;You owe&quot; (Red) or &quot;All paid up&quot; (Green)&lt;br&gt;• Hero Right: &quot;Paid out&quot; Donut Chart (Today/Week/Month/Year)&lt;br&gt;• Your groups: Recent · Favourites · All&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="80" y="10" width="260" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s3-empty" value="&lt;b&gt;S-empty · No groups yet&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;&quot;Create a group&quot; or &quot;Join with an invite link&quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="80" y="-140" width="190" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s3-offline" value="&lt;b&gt;S-offline · Offline Banner&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;&quot;You're offline · showing saved data from 10:42.&lt;br&gt;Anything you add syncs when you're back.&quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="390" y="-140" width="230" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s3-pay-dropdown" value="&lt;b&gt;S3-pay · Payments due dropdown&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Inline on Home (never a new screen):&lt;br&gt;• Pay X kr / Pay all → Cancel / Confirm&lt;br&gt;• Paying… → Paid · settled → No payments due&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="155" width="260" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s3-pie-popover" value="&lt;b&gt;S3-slice · Pie slice tapped&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Popover: Group spend, last payment&lt;br&gt;+ &quot;Open group&quot; button&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="410" y="155" width="210" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: Home Sub-states -->
+        <mxCell id="edge-home-empty" value="0 groups" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s3-empty">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-home-offline" value="No connection" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s3-offline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-home-paydrop" value="Press &quot;Pay now&quot; / &quot;Hide&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s3-pay-dropdown">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-home-pieslice" value="Tap donut slice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s3-pie-popover">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-pieslice-group" value="Press &quot;Open group&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-pie-popover" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- =================================================================== -->
+        <!-- 5. GROUPS TAB & CREATE GROUP FLOW (BOTTOM LEFT)                     -->
+        <!-- =================================================================== -->
+        <mxCell id="s4-groups-tab" value="&lt;b&gt;S4 · Groups tab (All groups)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Search bar + Star/Favourite toggle&lt;br&gt;+ &quot;New group&quot; button&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="410" y="20" width="210" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s4-filter-groups" value="&lt;b&gt;S-filter · Filtered groups&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Chips: All · Favourites · You owe ·&lt;br&gt;Owed to you · Settled + Summary strip&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="410" y="270" width="210" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s5-create-group" value="&lt;b&gt;S5 · Create group (New group)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• 6 Group colour swatches (never green/red)&lt;br&gt;• Name &amp;amp; optional description&lt;br&gt;• Add members by email/phone or suggestions&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="340" width="260" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s5-error-no-user" value="&lt;b&gt;S-Error · User does not exist&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;&quot;No one uses the app with &amp;lt;email&amp;gt; yet.&quot;&lt;br&gt;Action: &lt;b&gt;Send invite&lt;/b&gt; (adds &quot;invited&quot; chip)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="485" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: Groups & Create Group -->
+        <mxCell id="edge-home-groups-tab" value="Bottom Nav: Groups / &quot;See all N groups&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s4-groups-tab">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-groups-filter" value="Select filter chip / search" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s4-groups-tab" target="s4-filter-groups">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-home-creategroup" value="Press &quot;New group&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s5-create-group">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="320" y="445" />
-              <mxPoint x="320" y="265" />
+              <mxPoint x="50" y="58" />
+              <mxPoint x="50" y="385" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-126" connectable="0" parent="cE56ys2-FrZHt1rxKAFG-124" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;defaultLabelBackgroundColor=gap;" value="(confirm)" vertex="1">
-          <mxGeometry relative="1" x="-0.6342" as="geometry">
-            <mxPoint x="22" as="offset" />
+
+        <mxCell id="edge-groupstab-creategroup" value="Press &quot;+ New group&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s4-groups-tab" target="s5-create-group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="370" y="75" />
+              <mxPoint x="370" y="365" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-117" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="&lt;div&gt;S&lt;/div&gt;&lt;div&gt;Confirmation&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="400" y="400" as="geometry" />
-        </mxCell>
-        <mxCell id="cE56ys2-FrZHt1rxKAFG-127" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-85" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontSize=12;defaultLabelBackgroundColor=gap;startSize=8;endSize=8;" target="cE56ys2-FrZHt1rxKAFG-59">
+
+        <mxCell id="edge-creategroup-nouser" value="Add unregistered email/phone" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s5-create-group" target="s5-error-no-user">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="PEIUMIcMmU4SpWndcCpz-6" edge="1" parent="1" source="cE56ys2-FrZHt1rxKAFG-15" style="endArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=0;exitY=0.054;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="cE56ys2-FrZHt1rxKAFG-19" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="31" y="-49" as="sourcePoint" />
-            <mxPoint x="81" y="-99" as="targetPoint" />
+
+        <mxCell id="edge-creategroup-viewgroup" value="Press &quot;Create group&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s5-create-group" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="385" />
+              <mxPoint x="700" y="75" />
+            </Array>
           </mxGeometry>
         </mxCell>
+
+        <!-- =================================================================== -->
+        <!-- 6. GROUP DETAIL HUB ("S8 · View group", CENTER)                     -->
+        <!-- =================================================================== -->
+        <mxCell id="s8-view-group" value="&lt;b&gt;S8 · View group (Group detail hub)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Header: Group tile, members stack, settings&lt;br&gt;• Hero Card: &quot;You owe&quot; (Pay) | &quot;You're owed&quot; (Remind) | &quot;All square&quot;&lt;br&gt;• Segmented Tabs: &lt;b&gt;Activity · Balances · Members&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="740" y="10" width="270" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-home-viewgroup" value="Press on group" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s3-home" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="370" y="25" />
+              <mxPoint x="370" y="-15" />
+              <mxPoint x="700" y="-15" />
+              <mxPoint x="700" y="35" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-groupstab-viewgroup" value="Press on group" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s4-groups-tab" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Group Tab 3: Members (Top of View group) -->
+        <mxCell id="s8c-members" value="&lt;b&gt;S8c · Members tab (View group members)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Member list, role/diet notes (&quot;No alcohol&quot;),&lt;br&gt;balance chips, &quot;+ Add member&quot;, &quot;×&quot; remove&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="745" y="-160" width="260" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s8c-add-member" value="&lt;b&gt;S8c-add · Add member&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Lookup by email/phone or&lt;br&gt;send invite if not found&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="-260" width="190" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s8c-remove-warn" value="&lt;b&gt;S-Warn · Remove member warning&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Inline Amber card when balance ≠ 0:&lt;br&gt;&quot;&amp;lt;Name&amp;gt; still owes / is owed X kr&quot;&lt;br&gt;(&lt;b&gt;Keep &amp;lt;Name&amp;gt;&lt;/b&gt; / &lt;b&gt;Remove anyway&lt;/b&gt;)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="-160" width="230" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-group-members" value="Tab: Members / Tap avatars" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8-view-group" target="s8c-members">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-members-add" value="Press + Add member" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8c-members" target="s8c-add-member">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-members-removewarn" value="Press × (balance ≠ 0)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s8c-members" target="s8c-remove-warn">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Group Tab 2: Balances & Settle Up (Bottom-Right of View group) -->
+        <mxCell id="s8b-balances" value="&lt;b&gt;S8b · Balances &amp;amp; who pays whom&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Diverging bar chart (Owes Red / Is owed Green)&lt;br&gt;• &quot;Settle up&quot;: N payments clear every balance&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="160" width="250" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s8b-inline-settle" value="&lt;b&gt;S8-pay · Inline Settlement &amp;amp; Remind&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Confirmed in place on same card:&lt;br&gt;• Debtor: &lt;b&gt;Pay X kr&lt;/b&gt; → Cancel / Confirm → Paying… → Paid&lt;br&gt;• Creditor: &lt;b&gt;Remind&lt;/b&gt; (Reminder sent) or &lt;b&gt;Mark as paid&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="295" width="270" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-group-balances" value="Tab: Balances" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8-view-group" target="s8b-balances">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-group-heropay" value="Hero Card: Press Pay / Remind" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8-view-group" target="s8b-inline-settle">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="980" y="105" />
+              <mxPoint x="980" y="338" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-balances-settle" value="Press Pay / Remind / Mark as paid" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s8b-balances" target="s8b-inline-settle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Group Tab 1: Expense Details Bottom Sheet & Remove Confirmation (Below View group) -->
+        <mxCell id="s9-view-expense" value="&lt;b&gt;S9 · View expense (Expense details sheet)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Bottom sheet (28dp radius):&lt;br&gt;• Title, payer, date, 34sp amount, sync status pill&lt;br&gt;• Receipt photo (&quot;View&quot;) &amp;amp; split breakdown&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;multiple=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="680" y="210" width="250" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s9-remove-confirm" value="&lt;b&gt;S9-confirm · Remove expense&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Inline owner-only confirmation:&lt;br&gt;&quot;Remove this expense? Balances will update…&quot;&lt;br&gt;(&lt;b&gt;Keep it&lt;/b&gt; / &lt;b&gt;Remove&lt;/b&gt;)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="680" y="365" width="250" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s8-sync-retry" value="&lt;b&gt;S8-sync · Expense Sync Strips&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Pending: &quot;Saved on your phone · waiting to sync&quot;&lt;br&gt;• Failed: &quot;Couldn't sync yet · retrying&quot; + &lt;b&gt;Try now&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="680" y="485" width="250" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-group-expense" value="Tab: Activity → Press on expense" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8-view-group" target="s9-view-expense">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-expense-remove" value="(expense owner) Press &quot;Remove expense&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;fontSize=11;" edge="1" parent="1" source="s9-view-expense" target="s9-remove-confirm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-remove-cancel" value="(Keep it)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;fontSize=11;" edge="1" parent="1" source="s9-remove-confirm" target="s9-view-expense">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="405" />
+              <mxPoint x="640" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-remove-confirm" value="(Remove → closes sheet)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;fontSize=11;" edge="1" parent="1" source="s9-remove-confirm" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="610" y="430" />
+              <mxPoint x="610" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- =================================================================== -->
+        <!-- 7. RECEIPT SCANNING & EXPENSE ENTRY FLOW (RIGHT SIDE)               -->
+        <!-- =================================================================== -->
+        <mxCell id="perm-diamond" value="&lt;font style=&quot;font-size:10px&quot;&gt;Camera&lt;br&gt;permission?&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="-75" width="90" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-0-permission" value="&lt;b&gt;0 · Camera permission&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(First time only)&lt;br&gt;&quot;Snap a receipt, skip the typing&quot;&lt;br&gt;• Allow camera&lt;br&gt;• Type it in manually instead&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="-260" width="210" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-1-camera" value="&lt;b&gt;1 · Camera view&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Viewfinder (#101814), flash,&lt;br&gt;photo picker, shutter, manual entry&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="-260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-2-reading" value="&lt;b&gt;2 · Reading receipt&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;On-device offline OCR:&lt;br&gt;Found 9 lines · Reading prices ·&lt;br&gt;Checking the total&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1900" y="-260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-3-check-items" value="&lt;b&gt;3 · Check items (Step 1 of 2)&lt;/b&gt;&lt;br&gt;&lt;i&gt;Add expense view&lt;/i&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Select group &amp;amp; Paid by member&lt;br&gt;• Total verification (Amber mismatch / Green match)&lt;br&gt;• Edit/add/remove items (Alcohol, Pant, Rabat)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="20" width="250" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-4-who-had-what" value="&lt;b&gt;4 · Who had what (Step 2 of 2)&lt;/b&gt;&lt;br&gt;&lt;i&gt;Select group member's share view&lt;/i&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Top member toggles (leave someone out)&lt;br&gt;• Auto dietary exclusion banner (Lavender 50)&lt;br&gt;• Per-item member circles + live share summary&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1670" y="20" width="250" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s10-5-saved" value="&lt;b&gt;5 · Expense saved (Confirmation)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;• Breakdown of who owes whom &amp;amp; Your share&lt;br&gt;• Sync badge: &quot;Saved on phone · syncing…&quot; →&lt;br&gt;&quot;Synced · Mads, Ida and Jonas notified&quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1670" y="200" width="250" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-notify-sync" value="&lt;b&gt;Offline-First Sync &amp;amp; Notify&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;1. Insert into local Room DB&lt;br&gt;2. Enqueue WorkManager sync_queue&lt;br&gt;3. Notify group members on sync&lt;/font&gt;" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=17;verticalAlign=top;align=center;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1950" y="195" width="165" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: Scan & Add Expense Flow -->
+        <mxCell id="edge-group-scan" value="Bottom Nav: Scan / Press &quot;+ Add expense&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s8-view-group" target="perm-diamond">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1200" y="55" />
+              <mxPoint x="1200" y="-35" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-perm-ask" value="First time" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="perm-diamond" target="s10-0-permission">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-perm-granted" value="Granted" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="perm-diamond" target="s10-1-camera">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1600" y="-35" />
+              <mxPoint x="1600" y="-220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-ask-allow" value="Allow camera" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-0-permission" target="s10-1-camera">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-ask-manual" value="Type in manually" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-0-permission" target="s10-3-check-items">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1485" y="-80" />
+              <mxPoint x="1485" y="20" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-cam-manual" value="Type in manually" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-1-camera" target="s10-3-check-items">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1745" y="-80" />
+              <mxPoint x="1540" y="-80" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-cam-shoot" value="Take photo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-1-camera" target="s10-2-reading">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-reading-checkitems" value="OCR complete" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-2-reading" target="s10-3-check-items">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2005" y="-30" />
+              <mxPoint x="1580" y="-30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-checkitems-split" value="Next: who had what" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=11;" edge="1" parent="1" source="s10-3-check-items" target="s10-4-who-had-what">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-split-saved" value="Save expense · X kr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-4-who-had-what" target="s10-5-saved">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-saved-notify" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;fontSize=11;" edge="1" parent="1" source="s10-5-saved" target="note-notify-sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-saved-again" value="Scan another receipt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-5-saved" target="s10-1-camera">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1670" y="220" />
+              <mxPoint x="1635" y="220" />
+              <mxPoint x="1635" y="-200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge-saved-done" value="Press &quot;Done&quot;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;" edge="1" parent="1" source="s10-5-saved" target="s8-view-group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1795" y="420" />
+              <mxPoint x="1350" y="420" />
+              <mxPoint x="1350" y="85" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
       </root>
     </mxGraphModel>
   </diagram>
