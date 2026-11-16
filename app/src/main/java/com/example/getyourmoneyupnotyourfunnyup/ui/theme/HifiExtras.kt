@@ -19,13 +19,9 @@ import androidx.compose.ui.unit.sp
 object AppExtraColors {
     val GreenTint = Color(0xFFF4FBF6) // "Someone owes you" settle-up row
     val GreenTintBorder = Color(0xFFD7EEDF)
-    val UnreadTint = Color(0xFFF7FBF8) // Unread activity card
-    val UnreadBorder = Color(0xFFDCEFE3)
-    val RedSoftBorder = Color(0xFFE9B3AC) // "Try now" outline in Activity
     val AmberInputTint = Color(0xFFFFFBF0) // Text field showing a "not found" warning
     val StarOutline = Color(0xFFA9B3AD) // Un-starred favourite
     val SurfaceFaint = Color(0xFFF7F9F8) // Receipt item rows in "Check items"
-    val PieCaption = Color(0xFF4F5B54) // "kr this month" inside the donut
     val ReceiptInk = Color(0xFF2A2F2C)
     val ReceiptMuted = Color(0xFF6B716D)
     val ReceiptRule = Color(0xFF9AA19C)

@@ -32,63 +32,6 @@ class ViewModelStateTest {
     )
 
     @Test
-    fun home_payFlowGoesFromConfirmToPayingToPaid() = runTest(mainDispatcher.dispatcher) {
-        val vm = HomeViewModel(ledger())
-        assertTrue(vm.uiState.value.owing)
-        assertEquals(3, vm.uiState.value.debts.size)
-
-        vm.onAction(HomeAction.TogglePayments)
-        vm.onAction(HomeAction.AskPay("pad"))
-        assertEquals(PayState.Confirm, vm.uiState.value.debts.first { it.groupId == "pad" }.state)
-        assertFalse("Pay all hides while confirming one", vm.uiState.value.showPayAll)
-
-        vm.onAction(HomeAction.ConfirmPay("pad"))
-        assertEquals(PayState.Pending, vm.uiState.value.debts.first { it.groupId == "pad" }.state)
-
-        advanceTimeBy(501)
-        runCurrent()
-        val paid = vm.uiState.value.debts.first { it.groupId == "pad" }
-        assertEquals(PayState.Paid, paid.state)
-        assertEquals("Settled just now", paid.subtitle)
-        assertEquals(28_600L + 9_450L, vm.uiState.value.oweTotalCents)
-    }
-
-    @Test
-    fun home_payingEverythingFlipsToAllPaidUp() = runTest(mainDispatcher.dispatcher) {
-        val vm = HomeViewModel(ledger())
-        vm.onAction(HomeAction.TogglePayments)
-        vm.onAction(HomeAction.AskPayAll)
-        assertTrue(vm.uiState.value.confirmingAll)
-
-        vm.onAction(HomeAction.ConfirmPayAll)
-        advanceTimeBy(501)
-        runCurrent()
-        assertFalse(vm.uiState.value.owing)
-        assertTrue(vm.uiState.value.debts.isEmpty())
-    }
-
-    @Test
-    fun home_showsOfflineBannerWhenDisconnected() = runTest(mainDispatcher.dispatcher) {
-        val vm = HomeViewModel(ledger())
-        assertNull(vm.uiState.value.offlineMessage)
-        online.value = false
-        runCurrent()
-        assertNotNull(vm.uiState.value.offlineMessage)
-        assertTrue(vm.uiState.value.offlineMessage!!.startsWith("You're offline"))
-    }
-
-    @Test
-    fun home_selectingASliceShowsItsDetailsAndTappingAgainClosesIt() = runTest(mainDispatcher.dispatcher) {
-        val vm = HomeViewModel(ledger())
-        vm.onAction(HomeAction.SelectPeriod(com.example.getyourmoneyupnotyourfunnyup.model.Period.YEAR))
-        val slice = vm.uiState.value.slices.first()
-        vm.onAction(HomeAction.SelectSlice(slice.groupId))
-        assertEquals(slice.groupId, vm.uiState.value.selectedSlice?.groupId)
-        vm.onAction(HomeAction.SelectSlice(slice.groupId))
-        assertNull(vm.uiState.value.selectedSlice)
-    }
-
-    @Test
     fun group_removingAMemberWithABalanceAsksFirst() = runTest(mainDispatcher.dispatcher) {
         val ledger = ledger()
         val vm = GroupViewModel(ledger, "kol")

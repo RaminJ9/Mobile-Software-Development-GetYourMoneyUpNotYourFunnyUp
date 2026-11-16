@@ -12,6 +12,12 @@ import androidx.compose.ui.graphics.Color
  * - **Pastels are fills**: Text and buttons use the deep shade of the same hue (all pass 4.5:1).
  */
 object AppColors {
+    val ActivityUnread = Color(0xFFF7FBF8)
+    val ActivityUnreadBorder = Color(0xFFDCEFE3)
+    val RetryBorder = Color(0xFFE9B3AC)
+    val EmptyGroupPeach = Color(0xFFFDEBD9)
+    val InviteLavender = Color(0xFFB7A3E3)
+    val InvitePeach = Color(0xFFEBB98A)
     // Green – positive & primary
     val Green700 = Color(0xFF1E6B45) // Primary buttons, links, active tab, money in
     val Green800 = Color(0xFF14502F) // Hover / pressed primary state

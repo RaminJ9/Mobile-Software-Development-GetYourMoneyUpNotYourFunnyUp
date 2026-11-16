@@ -5,14 +5,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** Reporting periods for the "Paid out" chart on Home. */
-enum class Period(val short: String, val menuLabel: String, val phrase: String) {
-    TODAY("Today", "Today", "today"),
-    WEEK("Week", "This week", "this week"),
-    MONTH("Month", "This month", "this month"),
-    YEAR("Year", "This year", "this year")
-}
-
 /**
  * Human date labels used across the design: "Today", "Yesterday", "Sun 1 Nov", "12 Oct".
  * Uses java.util APIs so it works on minSdk 24 without desugaring.
@@ -20,9 +12,6 @@ enum class Period(val short: String, val menuLabel: String, val phrase: String) 
 object DateLabels {
     private val locale: Locale = Locale.UK
     private const val DAY_MS = 24L * 60 * 60 * 1000
-
-    /** "Tuesday 3 November" */
-    fun longDate(millis: Long): String = SimpleDateFormat("EEEE d MMMM", locale).format(Date(millis))
 
     /** "10:12" */
     fun time(millis: Long): String = SimpleDateFormat("HH:mm", locale).format(Date(millis))
@@ -36,37 +25,6 @@ object DateLabels {
             days < 7 -> SimpleDateFormat("EEE d MMM", locale).format(Date(millis))
             else -> SimpleDateFormat("d MMM", locale).format(Date(millis))
         }
-    }
-
-    /** Activity feed section: "Today", "Yesterday" or "Earlier". */
-    fun section(millis: Long, now: Long): String = when (daysBetween(millis, now)) {
-        0, -1 -> "Today"
-        1 -> "Yesterday"
-        else -> "Earlier"
-    }
-
-    /** "Since today", "Since yesterday", "Since Sun 1 Nov". */
-    fun since(millis: Long, now: Long): String = when (val label = relativeDay(millis, now)) {
-        "Today", "Yesterday" -> "Since ${label.lowercase(locale)}"
-        else -> "Since $label"
-    }
-
-    /** True when [millis] falls inside the calendar [period] that contains [now]. */
-    fun isInPeriod(millis: Long, period: Period, now: Long): Boolean {
-        if (millis > now) return false
-        val start = startOfDay(now).apply {
-            when (period) {
-                Period.TODAY -> Unit
-                Period.WEEK -> {
-                    firstDayOfWeek = Calendar.MONDAY
-                    val offset = (get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7
-                    add(Calendar.DAY_OF_MONTH, -offset)
-                }
-                Period.MONTH -> set(Calendar.DAY_OF_MONTH, 1)
-                Period.YEAR -> set(Calendar.DAY_OF_YEAR, 1)
-            }
-        }
-        return millis >= start.timeInMillis
     }
 
     /** Whole calendar days from [from] to [to] (0 = same day). */

@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -19,6 +20,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GetYourMoneyUpNotYourFunnyUp">
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService" tools:node="remove" />
+        <receiver android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver" tools:node="remove" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

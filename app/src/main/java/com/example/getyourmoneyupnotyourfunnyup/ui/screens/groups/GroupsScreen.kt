@@ -35,7 +35,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.FilterPill
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.jakarta
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupFilter
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsFilter
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsAction
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsLocalState
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsUiState
@@ -93,10 +93,10 @@ fun GroupsScreen(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            GroupFilter.entries.forEach { filter ->
+            GroupsFilter.entries.forEach { filter ->
                 val (background, content) = when (filter) {
-                    GroupFilter.Owe -> AppColors.Red100 to AppColors.Red700
-                    GroupFilter.Owed -> AppColors.Green100 to AppColors.Green700
+                    GroupsFilter.Owe -> AppColors.Red100 to AppColors.Red700
+                    GroupsFilter.Owed -> AppColors.Green100 to AppColors.Green700
                     else -> AppColors.Ink900 to AppColors.White
                 }
                 FilterPill(
@@ -161,6 +161,6 @@ private fun GroupsPreview() {
 private fun GroupsOwePreview() {
     val now = System.currentTimeMillis()
     GetYourMoneyUpNotYourFunnyUpTheme {
-        GroupsScreen(buildGroupsUiState(DemoLedger.create(now), GroupsLocalState(filter = GroupFilter.Owe), now), {}, {}, {})
+        GroupsScreen(buildGroupsUiState(DemoLedger.create(now), GroupsLocalState(filter = GroupsFilter.Owe), now), {}, {}, {})
     }
 }

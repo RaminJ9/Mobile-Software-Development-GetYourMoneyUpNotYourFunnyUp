@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -17,6 +18,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
@@ -42,9 +44,12 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.screens.profile.ProfileRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.scan.ScanRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.jakarta
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ActivityViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthMode
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SessionViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.appViewModel
+import kotlinx.coroutines.launch
 
 /** App entry point: session, navigation, bottom bar and the "synced" snackbar. */
 @Composable
@@ -55,8 +60,10 @@ fun AppRoot(modifier: Modifier = Modifier) {
             initializer { AppNavigator(if (session.startSignedIn) Destination.Home else Destination.Login) }
         },
     )
-    val ledger = LocalContext.current.appContainer.ledgerRepository
+    val container = LocalContext.current.appContainer
+    val ledger = container.ledgerRepository
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val currentDestination = navigator.current.destination
     // The scan confirmation shows its own sync state, so the snackbar is only used elsewhere.
     val showSyncSnackbar by rememberUpdatedState(
@@ -96,16 +103,26 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 else -> MainScaffold(navigator, destination) {
                     when (destination) {
                         Destination.Home -> HomeRoute(
-                            onOpenGroup = { navigator.navigate(Destination.GroupDetail(it)) },
-                            onSeeAllGroups = { navigator.selectTab(MainTab.Groups) },
-                            onCreateGroup = { navigator.navigate(Destination.CreateGroup) },
+                            viewModel = appViewModel { HomeViewModel(it.dashboardSource.home, it.dashboardSource) },
                             onOpenActivity = { navigator.selectTab(MainTab.Activity) },
+                            onOpenGroups = { navigator.selectTab(MainTab.Groups) },
+                            onCreateGroup = { navigator.navigate(Destination.CreateGroup) },
+                            // There is no invite-link backend yet, so explain how to join instead.
+                            onJoinGroup = { scope.launch { snackbar.showSnackbar(JOIN_HINT) } },
+                            onOpenGroup = { navigator.navigate(Destination.GroupDetail(it)) },
+                            modifier = Modifier.statusBarsPadding(),
                         )
                         Destination.Groups -> GroupsRoute(
                             onOpenGroup = { navigator.navigate(Destination.GroupDetail(it)) },
                             onCreateGroup = { navigator.navigate(Destination.CreateGroup) },
                         )
-                        Destination.Activity -> ActivityRoute()
+                        Destination.Activity -> ActivityRoute(
+                            viewModel = appViewModel {
+                                ActivityViewModel(it.dashboardSource.activity, it.dashboardSource, it.dashboardSource)
+                            },
+                            modifier = Modifier.statusBarsPadding(),
+                            onMarkAllRead = container.dashboardSource::markAllActivityRead,
+                        )
                         Destination.Profile -> ProfileRoute(
                             onLogout = {
                                 session.signOut()
@@ -137,6 +154,8 @@ fun AppRoot(modifier: Modifier = Modifier) {
         }
     }
 }
+
+private const val JOIN_HINT = "Ask someone in the group to add you by email or phone number."
 
 /** Screen with the bottom navigation bar. */
 @Composable

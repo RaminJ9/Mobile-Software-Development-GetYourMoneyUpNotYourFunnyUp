@@ -232,27 +232,6 @@ fun SegmentedTabs(
 // Banners
 // ---------------------------------------------------------------------------------------------
 
-/** "You're offline · showing saved data from 10:42…" */
-@Composable
-fun OfflineBanner(text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(AppColors.Surface, RoundedCornerShape(16.dp))
-            .semantics(mergeDescendants = true) { }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AppIcon(AppIcons.CloudOff, size = 18.dp, strokeWidth = 2f, tint = AppColors.Ink700)
-        Text(
-            text,
-            style = jakarta(13, FontWeight.SemiBold, lineHeight = 18.sp),
-            color = AppColors.Ink700,
-        )
-    }
-}
-
 enum class NoticeTone(val background: Color, val content: Color) {
     Warning(AppColors.Amber100, AppColors.Amber800),
     Success(AppColors.Green100, AppColors.Green700),

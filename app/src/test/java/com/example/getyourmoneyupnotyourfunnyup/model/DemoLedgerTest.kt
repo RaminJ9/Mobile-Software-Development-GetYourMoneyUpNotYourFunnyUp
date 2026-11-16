@@ -41,7 +41,7 @@ class DemoLedgerTest {
     @Test
     fun feedHasAnUnpaidReminderAndAFailedSync() {
         val feed = ledger.activityFeed(now)
-        assertTrue(feed.any { it.type == ActivityType.REMINDER && it.amountCents == 28_600L })
-        assertTrue(feed.any { it.type == ActivityType.FAILED && it.expenseId == "ski-fuel" })
+        assertTrue(feed.any { it.type == ActivityEntryType.REMINDER && it.amountCents == 28_600L })
+        assertTrue(feed.any { it.type == ActivityEntryType.FAILED && it.expenseId == "ski-fuel" })
     }
 }

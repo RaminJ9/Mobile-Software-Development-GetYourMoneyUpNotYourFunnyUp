@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
-import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.jakarta
 
 /** Button colour roles from the style guide. */
@@ -59,7 +58,6 @@ enum class ButtonTone(val container: Color, val content: Color, val border: Colo
     GreenOutline(AppColors.White, AppColors.Green700, AppColors.Green200),
 
     /** Red outline on white, e.g. "Try now" in Activity. */
-    RedOutline(AppColors.White, AppColors.Red800, AppExtraColors.RedSoftBorder, 1.5.dp),
 
     /** Muted red text on white ("Remove expense"). */
     DangerSecondary(AppColors.White, AppColors.Red800, AppColors.Line),

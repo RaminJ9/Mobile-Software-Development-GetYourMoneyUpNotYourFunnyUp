@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
-enum class GroupFilter(val label: String) {
+enum class GroupsFilter(val label: String) {
     All("All"),
     Favourites("Favourites"),
     Owe("You owe"),
@@ -35,8 +35,8 @@ enum class SummaryTone { Owe, Owed }
 @Immutable
 data class GroupsUiState(
     val query: String,
-    val filter: GroupFilter,
-    val counts: Map<GroupFilter, Int>,
+    val filter: GroupsFilter,
+    val counts: Map<GroupsFilter, Int>,
     val rows: List<GroupRowUi>,
     /** "You owe 412,50 kr across 3 groups" — only for the You owe / Owed to you filters. */
     val summary: String?,
@@ -47,11 +47,11 @@ data class GroupsUiState(
 
 sealed interface GroupsAction {
     data class QueryChanged(val query: String) : GroupsAction
-    data class SelectFilter(val filter: GroupFilter) : GroupsAction
+    data class SelectFilter(val filter: GroupsFilter) : GroupsAction
     data class ToggleFavourite(val groupId: String) : GroupsAction
 }
 
-data class GroupsLocalState(val query: String = "", val filter: GroupFilter = GroupFilter.All)
+data class GroupsLocalState(val query: String = "", val filter: GroupsFilter = GroupsFilter.All)
 
 fun buildGroupsUiState(snapshot: LedgerSnapshot, local: GroupsLocalState, now: Long): GroupsUiState {
     val all = snapshot.myGroups().map { snapshot.groupRow(it, now) }.sortedByDescending { it.lastActiveAt }
@@ -60,28 +60,28 @@ fun buildGroupsUiState(snapshot: LedgerSnapshot, local: GroupsLocalState, now: L
 
     val summary = when {
         q.isNotEmpty() || list.isEmpty() -> null
-        local.filter == GroupFilter.Owe ->
+        local.filter == GroupsFilter.Owe ->
             "You owe ${MoneyFormat.kr(list.sumOf { it.netCents })} kr across ${groupsLabel(list.size)}"
-        local.filter == GroupFilter.Owed ->
+        local.filter == GroupsFilter.Owed ->
             "You’re owed ${MoneyFormat.kr(list.sumOf { it.netCents })} kr across ${groupsLabel(list.size)}"
         else -> null
     }
     val (emptyTitle, emptyText) = when {
         list.isNotEmpty() -> null to ""
         q.isNotEmpty() -> "No groups match “${local.query.trim()}”" to "Check the spelling or try another filter."
-        local.filter == GroupFilter.Favourites ->
+        local.filter == GroupsFilter.Favourites ->
             "No favourites yet" to "Tap the star on a group to pin it here and on your home screen."
-        local.filter == GroupFilter.Owe -> "You don’t owe anyone" to "All your groups are square."
+        local.filter == GroupsFilter.Owe -> "You don’t owe anyone" to "All your groups are square."
         all.isEmpty() -> "No groups yet" to "Create a group for your flat, a trip or Friday bar."
         else -> "Nothing here" to "All your groups are square."
     }
     return GroupsUiState(
         query = local.query,
         filter = local.filter,
-        counts = GroupFilter.entries.associateWith { filter -> all.count(filter::matches) },
+        counts = GroupsFilter.entries.associateWith { filter -> all.count(filter::matches) },
         rows = list,
         summary = summary,
-        summaryTone = if (local.filter == GroupFilter.Owe) SummaryTone.Owe else SummaryTone.Owed,
+        summaryTone = if (local.filter == GroupsFilter.Owe) SummaryTone.Owe else SummaryTone.Owed,
         emptyTitle = emptyTitle,
         emptyText = emptyText,
     )

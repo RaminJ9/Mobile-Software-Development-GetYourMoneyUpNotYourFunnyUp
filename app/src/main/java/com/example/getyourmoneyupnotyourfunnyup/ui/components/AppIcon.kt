@@ -41,13 +41,6 @@ private fun roundRect(x: Float, y: Float, w: Float, h: Float, r: Float): String 
 /** Icon set used by the app. Path data is copied from `docs/HiFi.html`. */
 object AppIcons {
     val Bell = AppIconSpec(listOf("M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0"))
-    val CloudOff = AppIconSpec(
-        listOf(
-            "m2 2 20 20",
-            "M5.8 5.8A7 7 0 0 0 7 19h10a4.5 4.5 0 0 0 2.6-.8",
-            "M21.5 15.5A4.5 4.5 0 0 0 17.5 10h-.5a7 7 0 0 0-6.3-4",
-        ),
-    )
     val ChevronDown = AppIconSpec(listOf("m6 9 6 6 6-6"))
     val ChevronRight = AppIconSpec(listOf("m9 6 6 6-6 6"))
     val Close = AppIconSpec(listOf("M18 6 6 18M6 6l12 12"))
@@ -90,7 +83,6 @@ object AppIcons {
     val Receipt = AppIconSpec(listOf("M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z", "M9 8h6M9 12h6"))
     val Card = AppIconSpec(listOf(roundRect(3f, 6f, 18f, 13f, 3f), "M3 10h18M7 15h3"))
     val AlertCircle = AppIconSpec(listOf(circle(12f, 12f, 9f), "M12 8v4M12 16h.01"))
-    val AlertMark = AppIconSpec(listOf("M12 8v4M12 16h.01"))
     val Plus = AppIconSpec(listOf("M12 5v14M5 12h14"))
     val Trash = AppIconSpec(listOf("M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"))
     val Camera = AppIconSpec(

@@ -62,45 +62,14 @@ fun LedgerSnapshot.myDebts(): List<MyDebt> = myGroups().flatMap { group ->
 /** Sum of positive balances across groups (money owed to the user). */
 fun LedgerSnapshot.totalOwedToMe(): Long = myGroups().sumOf { maxOf(0L, myNet(it.id)) }
 
-/** What the user paid out per group in a period: expenses they paid plus completed payments they made. */
-fun LedgerSnapshot.paidOutByGroup(period: Period, now: Long): Map<String, Long> {
-    val totals = LinkedHashMap<String, Long>()
-    expenses.filter { !it.isDeleted && it.payerId == currentUserId && DateLabels.isInPeriod(it.createdAt, period, now) }
-        .forEach { totals[it.groupId] = (totals[it.groupId] ?: 0L) + it.amountCents }
-    settlements.filter {
-        it.debtorId == currentUserId && it.status == SettlementStatus.COMPLETED &&
-            DateLabels.isInPeriod(it.createdAt, period, now)
-    }.forEach { totals[it.groupId] = (totals[it.groupId] ?: 0L) + it.amountCents }
-    return totals.filterValues { it > 0 }.entries.sortedByDescending { it.value }
-        .associateTo(LinkedHashMap()) { it.key to it.value }
-}
-
-/** "1.200,00 kr to Mads · Sun 1 Nov" — the user's latest payment in a group, if any. */
-fun LedgerSnapshot.lastPaymentLabel(groupId: String, now: Long): String? {
-    val expense = expenses.filter { it.groupId == groupId && !it.isDeleted && it.payerId == currentUserId }
-        .maxByOrNull { it.createdAt }
-    val settlement = settlements.filter {
-        it.groupId == groupId && it.debtorId == currentUserId && it.status == SettlementStatus.COMPLETED
-    }.maxByOrNull { it.createdAt }
-    return when {
-        settlement != null && (expense == null || settlement.createdAt >= expense.createdAt) ->
-            "${MoneyFormat.kr(settlement.amountCents)} kr to ${person(settlement.creditorId).name} · " +
-                DateLabels.relativeDay(settlement.createdAt, now)
-        expense != null ->
-            "${MoneyFormat.kr(expense.amountCents)} kr · ${expense.title} · " +
-                DateLabels.relativeDay(expense.createdAt, now)
-        else -> null
-    }
-}
-
-enum class ActivityType { REMINDER, ADDED, FAILED, PAID }
+enum class ActivityEntryType { REMINDER, ADDED, FAILED, PAID }
 
 enum class MoneyDirection { OUT, IN, SETTLE, NONE }
 
 /** One row in the Activity tab. */
 data class ActivityEntry(
     val id: String,
-    val type: ActivityType,
+    val type: ActivityEntryType,
     val actorId: String?,
     val actorLabel: String,
     val text: String,
@@ -117,8 +86,16 @@ data class ActivityEntry(
 
 private const val UNREAD_WINDOW_MS = 24L * 60 * 60 * 1000
 
-/** The signed-in user's activity feed, newest first. */
-fun LedgerSnapshot.activityFeed(now: Long): List<ActivityEntry> {
+/** Feed id of the "couldn't sync" entry for one of the user's expenses. */
+fun failedSyncActivityId(expenseId: String): String = "fail:$expenseId"
+
+/**
+ * The signed-in user's activity feed, newest first.
+ *
+ * @param keepFailures expense ids whose "couldn't sync" entry stays in the feed after a retry, so the
+ * card can go on to show "Synced".
+ */
+fun LedgerSnapshot.activityFeed(now: Long, keepFailures: Set<String> = emptySet()): List<ActivityEntry> {
     val mine = myGroups().map { it.id }.toSet()
     val entries = mutableListOf<ActivityEntry>()
     fun unread(id: String, at: Long) = now - at < UNREAD_WINDOW_MS && id !in readActivityIds
@@ -129,7 +106,7 @@ fun LedgerSnapshot.activityFeed(now: Long): List<ActivityEntry> {
         val owed = settlePlan(reminder.groupId)
             .firstOrNull { it.debtorId == currentUserId && it.creditorId == reminder.fromId }?.amountCents
         entries += ActivityEntry(
-            id = id, type = ActivityType.REMINDER, actorId = reminder.fromId,
+            id = id, type = ActivityEntryType.REMINDER, actorId = reminder.fromId,
             actorLabel = person(reminder.fromId).name, text = "reminded you to pay for $groupName",
             groupId = reminder.groupId, createdAt = reminder.createdAt, amountCents = owed,
             direction = MoneyDirection.OUT, isUnread = unread(id, reminder.createdAt),
@@ -141,16 +118,17 @@ fun LedgerSnapshot.activityFeed(now: Long): List<ActivityEntry> {
         if (expense.payerId != currentUserId && myShare > 0) {
             val id = "exp:${expense.id}"
             entries += ActivityEntry(
-                id = id, type = ActivityType.ADDED, actorId = expense.payerId,
+                id = id, type = ActivityEntryType.ADDED, actorId = expense.payerId,
                 actorLabel = person(expense.payerId).name, text = "added “${expense.title}” · your share",
                 groupId = expense.groupId, createdAt = expense.createdAt, amountCents = myShare,
                 direction = MoneyDirection.OUT, isUnread = unread(id, expense.createdAt)
             )
         }
-        if (expense.payerId == currentUserId && expense.syncStatus == SyncStatus.FAILED) {
-            val id = "fail:${expense.id}"
+        // The upload belongs to whoever saved the expense on their phone, not necessarily the payer.
+        if (expense.createdBy == currentUserId && (expense.syncStatus == SyncStatus.FAILED || expense.id in keepFailures)) {
+            val id = failedSyncActivityId(expense.id)
             entries += ActivityEntry(
-                id = id, type = ActivityType.FAILED, actorId = null, actorLabel = expense.title,
+                id = id, type = ActivityEntryType.FAILED, actorId = null, actorLabel = expense.title,
                 text = "couldn’t sync yet – retrying automatically", groupId = expense.groupId,
                 createdAt = expense.createdAt, amountCents = null, direction = MoneyDirection.NONE,
                 isUnread = id !in readActivityIds, expenseId = expense.id
@@ -164,7 +142,7 @@ fun LedgerSnapshot.activityFeed(now: Long): List<ActivityEntry> {
         val id = "set:${settlement.id}"
         val iPaid = settlement.debtorId == currentUserId
         entries += ActivityEntry(
-            id = id, type = ActivityType.PAID,
+            id = id, type = ActivityEntryType.PAID,
             actorId = settlement.debtorId,
             actorLabel = if (iPaid) "You" else person(settlement.debtorId).name,
             text = if (iPaid) "paid ${person(settlement.creditorId).name}" else "paid you",

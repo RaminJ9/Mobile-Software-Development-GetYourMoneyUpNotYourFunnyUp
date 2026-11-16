@@ -26,6 +26,9 @@ import kotlin.math.abs
 
 enum class GroupTab(val label: String) { Activity("Activity"), Balances("Balances"), Members("Members") }
 
+/** Where a payment is in the "Pay → Cancel / Confirm → Paying… → Paid" flow. */
+enum class PayState { Idle, Confirm, Pending, Paid }
+
 @Immutable
 data class AvatarUi(val initial: String, val paletteIndex: Int)
 
@@ -113,12 +116,16 @@ data class AddMemberUi(
     val suggestions: List<PersonSuggestionUi>,
 )
 
+/** Shown while offline; [savedAtLabel] is the last sync time ("10:42") when known. */
+@Immutable
+data class OfflineUi(val savedAtLabel: String?)
+
 sealed interface GroupUiState {
     data object Missing : GroupUiState
 
     @Immutable
     data class Content(
-        val offlineMessage: String?,
+        val offline: OfflineUi?,
         val name: String,
         val avatar: AvatarUi,
         val memberCount: Int,
@@ -375,7 +382,7 @@ fun buildGroupUiState(
     } else null
 
     return GroupUiState.Content(
-        offlineMessage = if (online) null else offlineMessage(snapshot.lastSyncedAt, "New expenses sync when you're back."),
+        offline = if (online) null else OfflineUi(snapshot.lastSyncedAt?.let(DateLabels::time)),
         name = group.name,
         avatar = AvatarUi(group.name.take(1).uppercase(), group.colorIndex),
         memberCount = memberIds.size,

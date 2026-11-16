@@ -196,7 +196,15 @@ class InMemoryLedgerRepository(
         scope.launch {
             delay(paymentDelayMs)
             state.update { s ->
-                s.copy(settlements = s.settlements.map { if (it.id == id) it.copy(status = SettlementStatus.COMPLETED) else it })
+                s.copy(settlements = s.settlements.map {
+                    if (it.id != id) return@map it
+                    // Online, the payment's confirmation comes from the server, so it is synced in the same
+                    // step (screens can go straight from "Paying…" to "Paid"). Offline it stays queued.
+                    it.copy(
+                        status = SettlementStatus.COMPLETED,
+                        syncStatus = if (isOnline.value) SyncStatus.SYNCED else it.syncStatus,
+                    )
+                })
             }
         }
         return id

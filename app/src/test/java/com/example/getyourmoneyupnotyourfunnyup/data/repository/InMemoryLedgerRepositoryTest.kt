@@ -123,6 +123,22 @@ class InMemoryLedgerRepositoryTest {
     }
 
     @Test
+    fun aPayment_isSyncedWhenItCompletesOnline_andQueuedWhenOffline() = runTest {
+        val online = MutableStateFlow(true)
+        val repo = repository(online)
+        val onlineId = repo.payDebt("ski", "mads", 28_600)
+        advanceTimeBy(501)
+        assertEquals(SyncStatus.SYNCED, repo.snapshot.value.settlements.first { it.id == onlineId }.syncStatus)
+
+        online.value = false
+        val offlineId = repo.payDebt("fri", "sofie", 9_450)
+        advanceTimeBy(501)
+        val offline = repo.snapshot.value.settlements.first { it.id == offlineId }
+        assertEquals(SettlementStatus.COMPLETED, offline.status)
+        assertEquals(SyncStatus.PENDING_INSERT, offline.syncStatus)
+    }
+
+    @Test
     fun removingAnExpense_isASoftDeleteThatSyncsLater() = runTest {
         val repo = repository(MutableStateFlow(false))
         repo.removeExpense("kol-pizza")

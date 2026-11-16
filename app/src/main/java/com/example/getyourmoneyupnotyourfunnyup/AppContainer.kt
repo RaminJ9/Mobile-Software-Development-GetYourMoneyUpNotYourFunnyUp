@@ -3,14 +3,17 @@ package com.example.getyourmoneyupnotyourfunnyup
 import android.app.Application
 import android.content.Context
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.remote.ConnectivityObserver
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.InMemoryLedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectionState
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectivityObserver
+import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.LedgerDashboardSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** Manual dependency container: one instance per process, owned by [GetYourMoneyUpApplication]. */
@@ -18,7 +21,7 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val connectivity = ConnectivityObserver(appContext)
+    private val connectivity = ConnectivityObserver(appContext)
 
     val authRepository: AuthRepository by lazy {
         val database = AppDatabase.getInstance(appContext)
@@ -28,9 +31,16 @@ class AppContainer(context: Context) {
     val ledgerRepository: LedgerRepository by lazy {
         InMemoryLedgerRepository(
             scope = appScope,
-            isOnline = connectivity.observe().stateIn(appScope, SharingStarted.Eagerly, connectivity.isOnlineNow()),
+            // Same check as the Home/Activity offline banner, so the banner and syncing always agree.
+            // Unknown (no connectivity service) counts as online so uploads are still attempted.
+            isOnline = connectivity.observe()
+                .map { it != ConnectionState.Offline }
+                .stateIn(appScope, SharingStarted.Eagerly, connectivity.currentState() != ConnectionState.Offline),
         )
     }
+
+    /** Feeds the Home and Activity screens from [ledgerRepository]. */
+    val dashboardSource: LedgerDashboardSource by lazy { LedgerDashboardSource(ledgerRepository) }
 }
 
 class GetYourMoneyUpApplication : Application() {

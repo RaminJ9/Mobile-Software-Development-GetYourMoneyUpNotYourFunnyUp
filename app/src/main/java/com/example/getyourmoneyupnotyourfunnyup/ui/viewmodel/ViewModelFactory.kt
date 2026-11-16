@@ -13,7 +13,7 @@ import com.example.getyourmoneyupnotyourfunnyup.appContainer
  * Creates (or reuses) a ViewModel in the current navigation entry, built from the [AppContainer].
  *
  * ```
- * val vm = appViewModel { HomeViewModel(it.ledgerRepository) }
+ * val vm = appViewModel { GroupsViewModel(it.ledgerRepository) }
  * ```
  */
 @Composable

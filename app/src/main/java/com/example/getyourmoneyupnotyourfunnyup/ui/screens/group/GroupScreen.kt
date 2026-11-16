@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -61,7 +62,6 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.SegmentedTabs
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.Spinner
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.dashedBorder
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.home.StatusStrip
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppTypography
@@ -203,7 +203,9 @@ private fun GroupContent(
             }
         }
 
-        state.offlineMessage?.let { OfflineBanner(it, Modifier.offset(y = (-8).dp)) }
+        state.offline?.let {
+            OfflineBanner(it.savedAtLabel, Modifier.offset(y = (-8).dp), note = "New expenses sync when you're back.")
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -699,5 +701,21 @@ private fun GroupBalancesPreview() {
 private fun GroupMembersPreview() {
     GetYourMoneyUpNotYourFunnyUpTheme {
         GroupScreen(preview("kol", GroupLocalState(tab = GroupTab.Members, warnMemberId = "ida")), {}, {}, {}, {})
+    }
+}
+
+/** A 44 dp status row in place of a button, e.g. "Paying…" or "Paid · settled". */
+@Composable
+private fun StatusStrip(text: String, background: Color, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(background, RoundedCornerShape(14.dp))
+            .semantics(mergeDescendants = true) { },
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = jakarta(14, FontWeight.Bold), color = color)
     }
 }
