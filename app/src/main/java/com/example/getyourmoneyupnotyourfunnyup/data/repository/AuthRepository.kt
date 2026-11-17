@@ -6,6 +6,7 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
+import com.example.getyourmoneyupnotyourfunnyup.model.DietaryRules
 import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.User
@@ -53,10 +54,12 @@ class AuthRepository(
         displayName: String,
         email: String,
         password: String,
+        phoneNumber: String = "",
         onResult: (Result<User>) -> Unit
     ) {
         val trimmedName = displayName.trim().ifEmpty { email.trim().substringBefore("@") }
         val trimmedEmail = email.trim()
+        val trimmedPhone = phoneNumber.trim()
 
         auth.createUserWithEmailAndPassword(trimmedEmail, password)
             .addOnSuccessListener { authResult ->
@@ -78,8 +81,10 @@ class AuthRepository(
                     id = uid,
                     email = trimmedEmail,
                     displayName = trimmedName,
+                    phoneNumber = trimmedPhone,
                     photoUrl = null,
                     count = 0,
+                    dietaryRules = DietaryRules(),
                     notificationSettings = NotificationSettings(),
                     syncStatus = SyncStatus.PENDING_INSERT,
                     updatedAt = now
@@ -110,7 +115,7 @@ class AuthRepository(
                                     entityType = SyncEntityType.USER,
                                     entityId = uid,
                                     action = SyncAction.CREATE,
-                                    payloadJson = """{"id":"$uid","email":"$trimmedEmail","displayName":"$trimmedName","count":0}""",
+                                    payloadJson = newUser.toPayloadJson(),
                                     errorMessage = error.localizedMessage
                                 )
                             )
@@ -322,19 +327,138 @@ class AuthRepository(
             }
     }
 
+    /**
+     * Updates the user's profile fields (full name, email, phone number) in local SQLite first
+     * (`PENDING_UPDATE`) and syncs to Firestore `/users/{uid}` with offline outbox fallback.
+     */
+    fun updateProfile(
+        user: User,
+        fullName: String,
+        email: String,
+        phoneNumber: String,
+        onResult: (Result<User>) -> Unit = {}
+    ) {
+        val now = System.currentTimeMillis()
+        val updatedUser = user.copy(
+            displayName = fullName.trim().ifEmpty { user.displayName },
+            email = email.trim().ifEmpty { user.email },
+            phoneNumber = phoneNumber.trim(),
+            syncStatus = SyncStatus.PENDING_UPDATE,
+            updatedAt = now
+        )
+        persistUserMutation(updatedUser, onResult)
+    }
+
+    /**
+     * Updates the user's dietary rules ("Never charge me for") and notification settings
+     * ("Notify me about") in local SQLite first and syncs to Firestore `/users/{uid}`.
+     */
+    fun updatePreferences(
+        user: User,
+        dietaryRules: DietaryRules = user.dietaryRules,
+        notificationSettings: NotificationSettings = user.notificationSettings,
+        onResult: (Result<User>) -> Unit = {}
+    ) {
+        val now = System.currentTimeMillis()
+        val updatedUser = user.copy(
+            dietaryRules = dietaryRules,
+            notificationSettings = notificationSettings.copy(
+                expenseAlerts = notificationSettings.newExpenses || notificationSettings.changedExpenses
+            ),
+            syncStatus = SyncStatus.PENDING_UPDATE,
+            updatedAt = now
+        )
+        persistUserMutation(updatedUser, onResult)
+    }
+
+    private fun persistUserMutation(
+        updatedUser: User,
+        onResult: (Result<User>) -> Unit
+    ) {
+        // 1. Optimistic local SQLite update (SSOT)
+        ioScope.launch {
+            userDao.upsertUser(UserEntity.fromDomain(updatedUser))
+        }
+
+        // 2. Sync to Firestore `/users/{uid}`
+        firestore.collection(USERS_COLLECTION)
+            .document(updatedUser.id)
+            .set(updatedUser.toFirestoreMap(), SetOptions.merge())
+            .addOnSuccessListener {
+                val synced = updatedUser.copy(syncStatus = SyncStatus.SYNCED)
+                ioScope.launch {
+                    userDao.upsertUser(UserEntity.fromDomain(synced))
+                }
+                onResult(Result.success(synced))
+            }
+            .addOnFailureListener { error ->
+                val failed = updatedUser.copy(syncStatus = SyncStatus.FAILED)
+                ioScope.launch {
+                    userDao.upsertUser(UserEntity.fromDomain(failed))
+                    syncQueueDao.enqueue(
+                        SyncQueueEntity(
+                            entityType = SyncEntityType.USER,
+                            entityId = updatedUser.id,
+                            action = SyncAction.UPDATE,
+                            payloadJson = updatedUser.toPayloadJson(),
+                            errorMessage = error.localizedMessage
+                        )
+                    )
+                }
+                // Offline-first fault tolerance: return the locally saved user without blocking
+                onResult(Result.success(failed))
+            }
+    }
+
+    /**
+     * Sends a password reset email via Firebase Auth (used by "Forgot password?" and "Change password").
+     */
+    fun sendPasswordResetEmail(
+        email: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank()) {
+            onResult(Result.failure(IllegalArgumentException("Enter your email address first.")))
+            return
+        }
+        auth.sendPasswordResetEmail(trimmedEmail)
+            .addOnSuccessListener {
+                onResult(Result.success(Unit))
+            }
+            .addOnFailureListener { error ->
+                onResult(Result.failure(error))
+            }
+    }
+
     fun signOut() {
         auth.signOut()
+    }
+
+    private fun User.toPayloadJson(): String {
+        val escapedName = displayName.replace("\"", "\\\"")
+        val escapedEmail = email.replace("\"", "\\\"")
+        val escapedPhone = phoneNumber.replace("\"", "\\\"")
+        return """{"id":"$id","email":"$escapedEmail","displayName":"$escapedName","phoneNumber":"$escapedPhone","count":$count,"excludeAlcohol":${dietaryRules.excludeAlcohol},"excludeMeat":${dietaryRules.excludeMeat},"newExpenses":${notificationSettings.newExpenses},"changedExpenses":${notificationSettings.changedExpenses},"paymentReminders":${notificationSettings.paymentReminders},"syncUpdates":${notificationSettings.syncUpdates},"updatedAt":$updatedAt}"""
     }
 
     private fun User.toFirestoreMap(): Map<String, Any?> = mapOf(
         "id" to id,
         "email" to email,
         "displayName" to displayName,
+        "phoneNumber" to phoneNumber,
         "photoUrl" to photoUrl,
         "count" to count,
+        "dietaryRules" to mapOf(
+            "excludeAlcohol" to dietaryRules.excludeAlcohol,
+            "excludeMeat" to dietaryRules.excludeMeat
+        ),
         "notificationSettings" to mapOf(
-            "expenseAlerts" to notificationSettings.expenseAlerts,
-            "paymentReminders" to notificationSettings.paymentReminders
+            "expenseAlerts" to (notificationSettings.newExpenses || notificationSettings.changedExpenses),
+            "paymentReminders" to notificationSettings.paymentReminders,
+            "newExpenses" to notificationSettings.newExpenses,
+            "changedExpenses" to notificationSettings.changedExpenses,
+            "syncUpdates" to notificationSettings.syncUpdates
         ),
         "updatedAt" to updatedAt
     )
@@ -344,19 +468,34 @@ class AuthRepository(
         fallbackEmail: String,
         fallbackName: String
     ): User {
+        val dietMap = get("dietaryRules") as? Map<*, *>
+        val excludeAlcohol = (dietMap?.get("excludeAlcohol") as? Boolean) ?: false
+        val excludeMeat = (dietMap?.get("excludeMeat") as? Boolean) ?: false
+
         val notifMap = get("notificationSettings") as? Map<*, *>
         val expenseAlerts = (notifMap?.get("expenseAlerts") as? Boolean) ?: true
         val paymentReminders = (notifMap?.get("paymentReminders") as? Boolean) ?: true
+        val newExpenses = (notifMap?.get("newExpenses") as? Boolean) ?: expenseAlerts
+        val changedExpenses = (notifMap?.get("changedExpenses") as? Boolean) ?: expenseAlerts
+        val syncUpdates = (notifMap?.get("syncUpdates") as? Boolean) ?: true
 
         return User(
             id = getString("id") ?: uid,
             email = getString("email") ?: fallbackEmail,
             displayName = getString("displayName") ?: fallbackName,
+            phoneNumber = getString("phoneNumber").orEmpty(),
             photoUrl = getString("photoUrl"),
             count = getLong("count")?.toInt() ?: 0,
+            dietaryRules = DietaryRules(
+                excludeAlcohol = excludeAlcohol,
+                excludeMeat = excludeMeat
+            ),
             notificationSettings = NotificationSettings(
-                expenseAlerts = expenseAlerts,
-                paymentReminders = paymentReminders
+                expenseAlerts = newExpenses || changedExpenses,
+                paymentReminders = paymentReminders,
+                newExpenses = newExpenses,
+                changedExpenses = changedExpenses,
+                syncUpdates = syncUpdates
             ),
             syncStatus = SyncStatus.SYNCED,
             updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()

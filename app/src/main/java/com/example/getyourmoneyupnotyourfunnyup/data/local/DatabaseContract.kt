@@ -6,16 +6,23 @@ package com.example.getyourmoneyupnotyourfunnyup.data.local
  */
 object DatabaseContract {
     const val DATABASE_NAME = "get_your_money_up.db"
-    const val DATABASE_VERSION = 2
+    const val DATABASE_VERSION = 3
 
     object UsersTable {
         const val TABLE_NAME = "users"
         const val COL_ID = "id"
         const val COL_EMAIL = "email"
         const val COL_DISPLAY_NAME = "display_name"
+        const val COL_PHONE_NUMBER = "phone_number"
         const val COL_PHOTO_URL = "photo_url"
         const val COL_COUNT = "count"
         const val COL_NOTIFICATIONS_ENABLED = "notifications_enabled"
+        const val COL_EXCLUDE_ALCOHOL = "exclude_alcohol"
+        const val COL_EXCLUDE_MEAT = "exclude_meat"
+        const val COL_NOTIFY_NEW_EXPENSES = "notify_new_expenses"
+        const val COL_NOTIFY_CHANGED_EXPENSES = "notify_changed_expenses"
+        const val COL_NOTIFY_PAYMENT_REMINDERS = "notify_payment_reminders"
+        const val COL_NOTIFY_SYNC_UPDATES = "notify_sync_updates"
         const val COL_SYNC_STATUS = "sync_status"
         const val COL_UPDATED_AT = "updated_at"
 
@@ -24,9 +31,16 @@ object DatabaseContract {
                 $COL_ID TEXT PRIMARY KEY NOT NULL,
                 $COL_EMAIL TEXT NOT NULL,
                 $COL_DISPLAY_NAME TEXT NOT NULL,
+                $COL_PHONE_NUMBER TEXT NOT NULL DEFAULT '',
                 $COL_PHOTO_URL TEXT,
                 $COL_COUNT INTEGER NOT NULL DEFAULT 0,
                 $COL_NOTIFICATIONS_ENABLED INTEGER NOT NULL DEFAULT 1,
+                $COL_EXCLUDE_ALCOHOL INTEGER NOT NULL DEFAULT 0,
+                $COL_EXCLUDE_MEAT INTEGER NOT NULL DEFAULT 0,
+                $COL_NOTIFY_NEW_EXPENSES INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_CHANGED_EXPENSES INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_PAYMENT_REMINDERS INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_SYNC_UPDATES INTEGER NOT NULL DEFAULT 1,
                 $COL_SYNC_STATUS TEXT NOT NULL DEFAULT 'SYNCED',
                 $COL_UPDATED_AT INTEGER NOT NULL
             )

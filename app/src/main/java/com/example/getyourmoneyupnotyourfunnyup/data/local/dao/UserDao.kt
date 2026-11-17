@@ -66,6 +66,21 @@ class UserDao(private val database: AppDatabase) {
         }
     }
 
+    fun getUserByPhone(phoneNumber: String): UserEntity? {
+        val db = database.readableDatabase
+        db.query(
+            UsersTable.TABLE_NAME,
+            null,
+            "${UsersTable.COL_PHONE_NUMBER} = ?",
+            arrayOf(phoneNumber),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.toUserEntity() else null
+        }
+    }
+
     fun getAllUsers(): List<UserEntity> {
         val db = database.readableDatabase
         val users = mutableListOf<UserEntity>()
@@ -120,9 +135,16 @@ class UserDao(private val database: AppDatabase) {
         put(UsersTable.COL_ID, id)
         put(UsersTable.COL_EMAIL, email)
         put(UsersTable.COL_DISPLAY_NAME, displayName)
+        put(UsersTable.COL_PHONE_NUMBER, phoneNumber)
         put(UsersTable.COL_PHOTO_URL, photoUrl)
         put(UsersTable.COL_COUNT, count)
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationsEnabled) 1 else 0)
+        put(UsersTable.COL_EXCLUDE_ALCOHOL, if (excludeAlcohol) 1 else 0)
+        put(UsersTable.COL_EXCLUDE_MEAT, if (excludeMeat) 1 else 0)
+        put(UsersTable.COL_NOTIFY_NEW_EXPENSES, if (notifyNewExpenses) 1 else 0)
+        put(UsersTable.COL_NOTIFY_CHANGED_EXPENSES, if (notifyChangedExpenses) 1 else 0)
+        put(UsersTable.COL_NOTIFY_PAYMENT_REMINDERS, if (notifyPaymentReminders) 1 else 0)
+        put(UsersTable.COL_NOTIFY_SYNC_UPDATES, if (notifySyncUpdates) 1 else 0)
         put(UsersTable.COL_SYNC_STATUS, Converters.fromSyncStatus(syncStatus))
         put(UsersTable.COL_UPDATED_AT, updatedAt)
     }
@@ -130,13 +152,29 @@ class UserDao(private val database: AppDatabase) {
     private fun Cursor.toUserEntity(): UserEntity {
         val photoIdx = getColumnIndexOrThrow(UsersTable.COL_PHOTO_URL)
         val countIdx = getColumnIndex(UsersTable.COL_COUNT)
+        val phoneIdx = getColumnIndex(UsersTable.COL_PHONE_NUMBER)
+        val alcIdx = getColumnIndex(UsersTable.COL_EXCLUDE_ALCOHOL)
+        val meatIdx = getColumnIndex(UsersTable.COL_EXCLUDE_MEAT)
+        val newExpIdx = getColumnIndex(UsersTable.COL_NOTIFY_NEW_EXPENSES)
+        val chgExpIdx = getColumnIndex(UsersTable.COL_NOTIFY_CHANGED_EXPENSES)
+        val remIdx = getColumnIndex(UsersTable.COL_NOTIFY_PAYMENT_REMINDERS)
+        val syncIdx = getColumnIndex(UsersTable.COL_NOTIFY_SYNC_UPDATES)
+        val notifEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0
+
         return UserEntity(
             id = getString(getColumnIndexOrThrow(UsersTable.COL_ID)),
             email = getString(getColumnIndexOrThrow(UsersTable.COL_EMAIL)),
             displayName = getString(getColumnIndexOrThrow(UsersTable.COL_DISPLAY_NAME)),
+            phoneNumber = if (phoneIdx >= 0 && !isNull(phoneIdx)) getString(phoneIdx) else "",
             photoUrl = if (isNull(photoIdx)) null else getString(photoIdx),
             count = if (countIdx >= 0 && !isNull(countIdx)) getInt(countIdx) else 0,
-            notificationsEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0,
+            notificationsEnabled = notifEnabled,
+            excludeAlcohol = if (alcIdx >= 0 && !isNull(alcIdx)) getInt(alcIdx) != 0 else false,
+            excludeMeat = if (meatIdx >= 0 && !isNull(meatIdx)) getInt(meatIdx) != 0 else false,
+            notifyNewExpenses = if (newExpIdx >= 0 && !isNull(newExpIdx)) getInt(newExpIdx) != 0 else notifEnabled,
+            notifyChangedExpenses = if (chgExpIdx >= 0 && !isNull(chgExpIdx)) getInt(chgExpIdx) != 0 else notifEnabled,
+            notifyPaymentReminders = if (remIdx >= 0 && !isNull(remIdx)) getInt(remIdx) != 0 else notifEnabled,
+            notifySyncUpdates = if (syncIdx >= 0 && !isNull(syncIdx)) getInt(syncIdx) != 0 else notifEnabled,
             syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(UsersTable.COL_SYNC_STATUS))),
             updatedAt = getLong(getColumnIndexOrThrow(UsersTable.COL_UPDATED_AT))
         )

@@ -8,28 +8,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
-import com.example.getyourmoneyupnotyourfunnyup.model.User
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.DashboardDataSource
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.LoginScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.RegistrationScreen
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.counter.CounterScreen
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.shell.AuthenticatedShell
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
-
-private sealed interface AppDestination {
-    data object Login : AppDestination
-    data object Register : AppDestination
-    data class Counter(val initialUser: User) : AppDestination
-}
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthGateway
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthMode
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthViewModel
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SessionState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +32,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GetYourMoneyUpNotYourFunnyUpTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = AppColors.White
+                ) { innerPadding ->
                     AppRoot(
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -50,173 +48,69 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppRoot(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val database = remember { AppDatabase.getInstance(context) }
     val authRepository = remember {
-        val database = AppDatabase.getInstance(context)
         AuthRepository(
             userDao = database.userDao,
             syncQueueDao = database.syncQueueDao
         )
     }
-
-    var destination by remember { mutableStateOf<AppDestination>(AppDestination.Login) }
-    var displayName by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var statusMessage by remember { mutableStateOf("") }
-
-    // If a session is already active on launch, fetch the user document from Firestore
-    LaunchedEffect(Unit) {
-        val existingUid = authRepository.currentAuthUid
-        val existingEmail = authRepository.currentAuthEmail ?: ""
-        if (existingUid != null) {
-            isLoading = true
-            authRepository.fetchOrCreateUserDocument(
-                uid = existingUid,
-                fallbackEmail = existingEmail,
-                fallbackName = existingEmail.substringBefore("@").ifEmpty { "User" }
-            ) { result ->
-                isLoading = false
-                result.onSuccess { user ->
-                    statusMessage = "Loaded user from /users/${user.id}"
-                    destination = AppDestination.Counter(user)
-                }
-            }
-        }
+    val dashboardDataSource = remember { DashboardDataSource(database) }
+    val authViewModel = remember {
+        AuthViewModel(AuthGateway.fromAuthRepository(authRepository))
     }
 
-    when (val current = destination) {
-        is AppDestination.Login -> {
-            LoginScreen(
-                modifier = modifier,
-                email = email,
-                password = password,
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                onEmailChange = {
-                    email = it
-                    errorMessage = null
-                },
-                onPasswordChange = {
-                    password = it
-                    errorMessage = null
-                },
-                onLoginClick = {
-                    isLoading = true
-                    errorMessage = null
-                    authRepository.loginUser(
-                        email = email,
-                        password = password
-                    ) { result ->
-                        isLoading = false
-                        result
-                            .onSuccess { user ->
-                                statusMessage = "Fetched user from /users/${user.id}"
-                                destination = AppDestination.Counter(user)
-                            }
-                            .onFailure { err ->
-                                errorMessage = err.localizedMessage ?: "Login failed"
-                            }
-                    }
-                },
-                onNavigateToRegister = {
-                    errorMessage = null
-                    destination = AppDestination.Register
+    val authState by authViewModel.state.collectAsStateWithLifecycle()
+
+    when (val session = authState.session) {
+        SessionState.Unauthenticated -> {
+            when (authState.mode) {
+                AuthMode.Login -> {
+                    LoginScreen(
+                        modifier = modifier,
+                        email = authState.email,
+                        password = authState.password,
+                        isLoading = authState.isLoading,
+                        errorMessage = authState.errorMessage,
+                        infoMessage = authState.infoMessage,
+                        onEmailChange = authViewModel::onEmailChange,
+                        onPasswordChange = authViewModel::onPasswordChange,
+                        onLoginClick = authViewModel::login,
+                        onNavigateToRegister = authViewModel::switchToRegister,
+                        onForgotPasswordClick = authViewModel::forgotPassword
+                    )
                 }
-            )
-        }
 
-        is AppDestination.Register -> {
-            RegistrationScreen(
-                modifier = modifier,
-                displayName = displayName,
-                email = email,
-                password = password,
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                onDisplayNameChange = {
-                    displayName = it
-                    errorMessage = null
-                },
-                onEmailChange = {
-                    email = it
-                    errorMessage = null
-                },
-                onPasswordChange = {
-                    password = it
-                    errorMessage = null
-                },
-                onRegisterClick = {
-                    isLoading = true
-                    errorMessage = null
-                    authRepository.registerUser(
-                        displayName = displayName,
-                        email = email,
-                        password = password
-                    ) { result ->
-                        isLoading = false
-                        result
-                            .onSuccess { user ->
-                                statusMessage = "Created user in /users/${user.id}"
-                                destination = AppDestination.Counter(user)
-                            }
-                            .onFailure { err ->
-                                errorMessage = err.localizedMessage ?: "Registration failed"
-                            }
-                    }
-                },
-                onNavigateToLogin = {
-                    errorMessage = null
-                    destination = AppDestination.Login
-                }
-            )
-        }
-
-        is AppDestination.Counter -> {
-            val observedUser by authRepository
-                .observeUser(current.initialUser.id)
-                .collectAsState(initial = current.initialUser)
-            val activeUser = observedUser ?: current.initialUser
-
-            // Attach real-time Firestore listener to `/users/{uid}`
-            DisposableEffect(activeUser.id) {
-                val registration = authRepository.listenToUserDocument(
-                    uid = activeUser.id,
-                    fallbackEmail = activeUser.email,
-                    fallbackName = activeUser.displayName,
-                    onError = { errMsg ->
-                        statusMessage = "Firestore error: $errMsg"
-                    }
-                )
-                onDispose {
-                    registration.remove()
+                AuthMode.Register -> {
+                    RegistrationScreen(
+                        modifier = modifier,
+                        displayName = authState.displayName,
+                        email = authState.email,
+                        phoneNumber = authState.phoneNumber,
+                        password = authState.password,
+                        isLoading = authState.isLoading,
+                        errorMessage = authState.errorMessage,
+                        onDisplayNameChange = authViewModel::onDisplayNameChange,
+                        onEmailChange = authViewModel::onEmailChange,
+                        onPhoneNumberChange = authViewModel::onPhoneNumberChange,
+                        onPasswordChange = authViewModel::onPasswordChange,
+                        onRegisterClick = authViewModel::register,
+                        onNavigateToLogin = authViewModel::switchToLogin
+                    )
                 }
             }
+        }
 
-            CounterScreen(
+        is SessionState.Authenticated -> {
+            AuthenticatedShell(
                 modifier = modifier,
-                user = activeUser,
-                statusMessage = statusMessage,
-                onIncrementClick = {
-                    statusMessage = "Saving count to /users/${activeUser.id}..."
-                    authRepository.incrementUserCount(activeUser) { result ->
-                        result
-                            .onSuccess { savedCount ->
-                                statusMessage = "Saved count ($savedCount) to /users/${activeUser.id}"
-                            }
-                            .onFailure { err ->
-                                statusMessage = "Offline / Failed: ${err.localizedMessage}"
-                            }
-                    }
-                },
-                onLogoutClick = {
-                    authRepository.signOut()
-                    password = ""
-                    errorMessage = null
-                    statusMessage = ""
-                    destination = AppDestination.Login
-                }
+                initialUser = session.user,
+                selectedTab = session.selectedTab,
+                onSelectTab = authViewModel::selectTab,
+                authRepository = authRepository,
+                dashboardDataSource = dashboardDataSource,
+                onUserUpdated = authViewModel::onUserUpdated,
+                onLogout = authViewModel::logout
             )
         }
     }

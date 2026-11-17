@@ -14,14 +14,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.BottomNavBar
 import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.activity.ActivityRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.home.HomeRoute
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.profile.ProfileRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ActivityViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 
 class Person5TestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +40,12 @@ class Person5TestActivity : ComponentActivity() {
             ActivityViewModel(session.activity, SettlementActions { session.simulate() },
                 SyncRetryActions { session.simulate() })
         })[ActivityViewModel::class.java]
+        val profile = ViewModelProvider(this, factory {
+            ProfileViewModel(
+                userFlow = session.home.map { it.user },
+                initialUser = session.home.value.user
+            )
+        })[ProfileViewModel::class.java]
         val destination: (String) -> Unit = { name ->
             Toast.makeText(this, "Sample navigation: $name (not connected)", Toast.LENGTH_SHORT).show()
         }
@@ -48,8 +59,9 @@ class Person5TestActivity : ComponentActivity() {
                                 Text("All payments, retries and sync are simulated. No data is saved or sent.",
                                     style = AppTypography.Caption)
                                 Row {
-                                    TextButton(onClick = { session.showActivity = false }) { Text("Home") }
-                                    TextButton(onClick = { session.showActivity = true }) { Text("Activity") }
+                                    TextButton(onClick = { session.activeTab = AppTab.Home }) { Text("Home") }
+                                    TextButton(onClick = { session.activeTab = AppTab.Activity }) { Text("Activity") }
+                                    TextButton(onClick = { session.activeTab = AppTab.Profile }) { Text("Profile") }
                                     TextButton(onClick = {
                                         startActivity(Intent(this@Person5TestActivity, Person5TestActivity::class.java))
                                         finish()
@@ -75,11 +87,27 @@ class Person5TestActivity : ComponentActivity() {
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            if (session.showActivity) ActivityRoute(activity)
-                            else HomeRoute(home, { session.showActivity = true },
-                                { destination("Groups") }, { destination("Create group") },
-                                { destination("Join group") }, { destination("Group $it") })
+                            when (session.activeTab) {
+                                AppTab.Activity -> ActivityRoute(activity)
+                                AppTab.Profile -> ProfileRoute(
+                                    viewModel = profile,
+                                    onLogout = { destination("Log out") }
+                                )
+                                else -> HomeRoute(home, { session.activeTab = AppTab.Activity },
+                                    { destination("Groups") }, { destination("Create group") },
+                                    { destination("Join group") }, { destination("Group $it") })
+                            }
                         }
+                        BottomNavBar(
+                            selectedTab = session.activeTab,
+                            onSelectTab = { tab ->
+                                when (tab) {
+                                    AppTab.Home, AppTab.Activity, AppTab.Profile -> session.activeTab = tab
+                                    else -> destination(tab.label)
+                                }
+                            },
+                            hasUnreadActivity = true
+                        )
                     }
                 }
             }
@@ -90,7 +118,7 @@ class Person5TestActivity : ComponentActivity() {
 private class SampleSession : ViewModel() {
     val home = MutableStateFlow(sampleHome())
     val activity = MutableStateFlow(sampleActivity(home.value))
-    var showActivity by mutableStateOf(false)
+    var activeTab by mutableStateOf(AppTab.Home)
     var outcome by mutableStateOf("Success")
     var outcomeMenu by mutableStateOf(false)
 

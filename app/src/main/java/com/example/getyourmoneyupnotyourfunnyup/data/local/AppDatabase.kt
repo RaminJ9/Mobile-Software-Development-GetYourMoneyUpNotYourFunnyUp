@@ -69,6 +69,21 @@ class AppDatabase private constructor(
                 )
             }
         }
+        if (oldVersion < 3) {
+            val table = DatabaseContract.UsersTable.TABLE_NAME
+            val alterations = listOf(
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_PHONE_NUMBER} TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_ALCOHOL} INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_MEAT} INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_NEW_EXPENSES} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_CHANGED_EXPENSES} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_PAYMENT_REMINDERS} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_SYNC_UPDATES} INTEGER NOT NULL DEFAULT 1"
+            )
+            for (sql in alterations) {
+                runCatching { db.execSQL(sql) }
+            }
+        }
         onCreate(db)
     }
 
