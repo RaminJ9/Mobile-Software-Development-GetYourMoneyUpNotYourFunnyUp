@@ -234,7 +234,7 @@ private fun GroupContent(
                 GroupAvatar(state.avatar.initial, state.avatar.paletteIndex, size = 56.dp, corner = 18.dp, fontSize = 22)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     OneLine(state.name, AppTypography.ScreenTitle, AppColors.Ink900)
-                    Text("${state.memberCount} members · ${state.createdLabel}", style = AppTypography.Caption, color = AppColors.Ink600)
+                    Text("${state.memberCount} member${if (state.memberCount == 1) "" else "s"} · ${state.createdLabel}", style = AppTypography.Caption, color = AppColors.Ink600)
                 }
                 Row(
                     modifier = Modifier

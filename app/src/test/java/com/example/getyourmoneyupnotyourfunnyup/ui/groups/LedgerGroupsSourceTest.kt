@@ -192,6 +192,20 @@ class LedgerGroupsSourceTest {
     }
 
     @Test
+    fun membersViewModel_waitingToSyncStripClearsOnceTheGroupSyncs() = runTest(mainDispatcher.dispatcher) {
+        val source = LedgerGroupsSource(ledger())
+        val vm = GroupMembersViewModel(source.members("kol"), source, source, source)
+        vm.openAddMember()
+        vm.addSuggestion(checkNotNull(source.find("maja.s@mail.dk")))
+        runCurrent()
+        assertEquals(SyncStatus.PENDING_UPDATE, (vm.state.value as GroupMembersUiState.Success).lastWrite)
+
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertNull((vm.state.value as GroupMembersUiState.Success).lastWrite)
+    }
+
+    @Test
     fun createGroupViewModel_invitesAnUnknownContactAndSaves() = runTest(mainDispatcher.dispatcher) {
         val ledger = ledger()
         val source = LedgerGroupsSource(ledger)

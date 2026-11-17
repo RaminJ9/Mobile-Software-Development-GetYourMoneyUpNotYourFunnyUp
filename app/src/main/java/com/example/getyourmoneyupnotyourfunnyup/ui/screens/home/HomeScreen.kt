@@ -303,6 +303,8 @@ private fun BalanceHero(state: HomeUiState.Success, onToggle: () -> Unit, modifi
 
 private fun groupsLabel(count: Int) = if (count == 1) "1 group" else "$count groups"
 
+private fun membersLabel(count: Int) = if (count == 1) "1 member" else "$count members"
+
 /** "today", "yesterday" or "Sat 14 Nov", for "Since …" and "Active …" (only the relative words are lowercase). */
 private fun dayPhrase(millis: Long, nowMillis: Long) =
     relativeDate(millis, nowMillis).let { if (it == "Today" || it == "Yesterday") it.lowercase() else it }
@@ -486,7 +488,7 @@ private fun GroupRow(group: DashboardGroup, state: HomeUiState.Success, onClick:
                         )
                     }
                 } else Text(
-                    "${group.group.members.size} members · Active ${dayPhrase(group.lastActivityAt, state.data.nowMillis)}",
+                    "${membersLabel(group.group.members.size)} · Active ${dayPhrase(group.lastActivityAt, state.data.nowMillis)}",
                     style = AppTypography.Caption,
                     color = AppColors.Ink600
                 )

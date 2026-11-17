@@ -82,6 +82,8 @@ class GroupMembersViewModel(
                             // A changed balance invalidates the warning the user was reading.
                             warningFor = current.warningFor?.takeIf { it in stillHere && oldBalance == newBalance },
                             removing = current.removing.filter { it in stillHere }.toSet(),
+                            // The "waiting to sync" strip goes once the stored group reports it has synced.
+                            lastWrite = current.lastWrite.takeUnless { data.members.all { it.syncStatus == SyncStatus.SYNCED } },
                             sourceError = null
                         )
                     }
