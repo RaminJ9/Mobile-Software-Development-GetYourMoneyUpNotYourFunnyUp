@@ -9,6 +9,7 @@ data class UserEntity(
     val email: String,
     val displayName: String,
     val photoUrl: String? = null,
+    val phone: String? = null,
     val count: Int = 0,
     val notificationsEnabled: Boolean = true,
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
@@ -19,6 +20,7 @@ data class UserEntity(
         email = email,
         displayName = displayName,
         photoUrl = photoUrl,
+        phone = phone,
         count = count,
         notificationSettings = NotificationSettings(
             expenseAlerts = notificationsEnabled,
@@ -34,6 +36,7 @@ data class UserEntity(
             email = user.email,
             displayName = user.displayName,
             photoUrl = user.photoUrl,
+            phone = user.phone,
             count = user.count,
             notificationsEnabled = user.notificationSettings.expenseAlerts || user.notificationSettings.paymentReminders,
             syncStatus = user.syncStatus,

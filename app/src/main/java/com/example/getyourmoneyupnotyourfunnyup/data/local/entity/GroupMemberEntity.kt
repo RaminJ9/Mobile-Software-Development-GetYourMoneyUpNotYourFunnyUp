@@ -7,7 +7,8 @@ data class GroupMemberEntity(
     val groupId: String,
     val userId: String,
     val role: GroupRole = GroupRole.MEMBER,
-    val joinedAt: Long = System.currentTimeMillis()
+    val joinedAt: Long = System.currentTimeMillis(),
+    val invited: Boolean = false
 ) {
     fun toDomain(displayName: String = ""): GroupMember = GroupMember(
         groupId = groupId,

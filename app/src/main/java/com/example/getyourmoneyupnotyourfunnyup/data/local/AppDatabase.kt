@@ -69,6 +69,18 @@ class AppDatabase private constructor(
                 )
             }
         }
+        if (oldVersion < 3) {
+            // Person 2: group colour, favourite star, invited members and phone lookup.
+            val additions = listOf(
+                "${DatabaseContract.UsersTable.TABLE_NAME} ADD COLUMN ${DatabaseContract.UsersTable.COL_PHONE} TEXT",
+                "${DatabaseContract.GroupsTable.TABLE_NAME} ADD COLUMN ${DatabaseContract.GroupsTable.COL_COLOUR_INDEX} INTEGER NOT NULL DEFAULT 0",
+                "${DatabaseContract.GroupsTable.TABLE_NAME} ADD COLUMN ${DatabaseContract.GroupsTable.COL_IS_FAVOURITE} INTEGER NOT NULL DEFAULT 0",
+                "${DatabaseContract.GroupMembersTable.TABLE_NAME} ADD COLUMN ${DatabaseContract.GroupMembersTable.COL_INVITED} INTEGER NOT NULL DEFAULT 0"
+            )
+            for (addition in additions) {
+                runCatching { db.execSQL("ALTER TABLE $addition") }
+            }
+        }
         onCreate(db)
     }
 
