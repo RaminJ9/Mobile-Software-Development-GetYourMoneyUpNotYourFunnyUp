@@ -179,7 +179,8 @@ private fun LedgerSnapshot.outstandingPayments(): List<OutstandingPayment> = myD
     )
 }
 
-private fun LedgerSnapshot.dashboardGroup(group: Group) = DashboardGroup(
+/** Shared with the Groups tab adapter, so Home and Groups describe a group the same way. */
+internal fun LedgerSnapshot.dashboardGroup(group: Group) = DashboardGroup(
     group = group,
     colourIndex = group.colorIndex,
     isFavourite = group.id in favouriteGroupIds,
@@ -187,7 +188,7 @@ private fun LedgerSnapshot.dashboardGroup(group: Group) = DashboardGroup(
     pendingExpenseCount = unsyncedExpenseCount(group.id),
 )
 
-private fun Person.toUser() = User(id = id, email = contact, displayName = name)
+internal fun Person.toUser() = User(id = id, email = contact, displayName = name)
 
 private fun LedgerSnapshot.activityEvent(
     entry: ActivityEntry,

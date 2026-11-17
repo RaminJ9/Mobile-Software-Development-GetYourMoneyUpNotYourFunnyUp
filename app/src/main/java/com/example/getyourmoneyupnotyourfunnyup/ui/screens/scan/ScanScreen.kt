@@ -85,6 +85,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIconSpec
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIcons
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.DashedAddButton
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.DarkStatusBarBackground
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.FillingScrollColumn
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.GroupAvatar
@@ -92,14 +93,13 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.LabeledTextField
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.Notice
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.NoticeTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.OneLine
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.PersonAvatar
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptLine
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptPaper
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumb
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.Spinner
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.dashedBorder
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.group.DashedAddButton
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppShapes
@@ -553,7 +553,7 @@ private fun ReviewStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
             }
             items(state.items, key = { it.id }) { item -> ReviewItemRow(item, onAction) }
             item(key = "add") {
-                DashedAddButton("Add item", onClick = { onAction(ScanAction.AddItem) }, height = 48)
+                DashedAddButton("Add item", onClick = { onAction(ScanAction.AddItem) }, modifier = Modifier.height(48.dp))
             }
         }
         Column(Modifier.navigationBarsPadding()) {
@@ -619,7 +619,7 @@ private fun PayerRow(state: ScanUiState, onAction: (ScanAction) -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    PersonAvatar(payer.avatar.initial, payer.avatar.paletteIndex, size = 26.dp)
+                    PaletteAvatar(payer.avatar.initial, payer.avatar.paletteIndex, size = 26.dp)
                     Text(payer.name, style = jakarta(14, FontWeight.Bold), color = AppColors.Ink900)
                     AppIcon(AppIcons.ChevronDown, size = 14.dp, strokeWidth = 2.4f, tint = AppColors.Ink900)
                 }
@@ -644,7 +644,7 @@ private fun PayerRow(state: ScanUiState, onAction: (ScanAction) -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        PersonAvatar(option.avatar.initial, option.avatar.paletteIndex, size = 26.dp)
+                        PaletteAvatar(option.avatar.initial, option.avatar.paletteIndex, size = 26.dp)
                         Text(option.name, style = jakarta(14, FontWeight.Bold), color = AppColors.Ink900)
                     }
                 }
@@ -806,7 +806,7 @@ private fun SplitStep(state: ScanUiState, onAction: (ScanAction) -> Unit) {
                         Notice(
                             tone = NoticeTone.Rule,
                             leading = {
-                                state.ruleAvatar?.let { PersonAvatar(it.initial, it.paletteIndex, size = 28.dp) }
+                                state.ruleAvatar?.let { PaletteAvatar(it.initial, it.paletteIndex, size = 28.dp) }
                             },
                         ) {
                             Text(notice, style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp), color = AppColors.Lavender800)
@@ -858,10 +858,10 @@ private fun SplitStep(state: ScanUiState, onAction: (ScanAction) -> Unit) {
 @Composable
 private fun ToggleAvatar(avatar: AvatarUi, on: Boolean, size: Int) {
     if (on) {
-        PersonAvatar(avatar.initial, avatar.paletteIndex, size = size.dp)
+        PaletteAvatar(avatar.initial, avatar.paletteIndex, size = size.dp)
     } else {
         Box(
-            Modifier.size(size.dp).background(AppColors.White, CircleShape).dashedBorder(AppColors.SwitchOff, (size / 2).dp, strokeWidth = 2.dp),
+            Modifier.size(size.dp).background(AppColors.White, CircleShape).dashedBorder(AppColors.SwitchOff, (size / 2).dp, width = 2.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(avatar.initial, style = jakarta((size * 0.35f).toInt(), FontWeight.ExtraBold), color = AppColors.Ink400)
@@ -954,7 +954,7 @@ private fun SavedStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onDone
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        PersonAvatar(ower.avatar.initial, ower.avatar.paletteIndex, size = 36.dp)
+                        PaletteAvatar(ower.avatar.initial, ower.avatar.paletteIndex, size = 36.dp)
                         Text(ower.text, Modifier.weight(1f), style = jakarta(15, FontWeight.SemiBold), color = AppColors.Ink900)
                         Text(
                             when (ower.tone) {

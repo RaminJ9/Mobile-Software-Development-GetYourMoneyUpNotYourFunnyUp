@@ -136,21 +136,21 @@ class InMemoryLedgerRepository(
     override fun addMember(groupId: String, personId: String) = updateGroup(groupId) { group ->
         if (group.members.any { it.userId == personId }) return@updateGroup group
         val name = state.value.person(personId).name
-        group.copy(
-            members = group.members + GroupMember(groupId, personId, name, GroupRole.MEMBER, clock()),
-            updatedAt = clock(), syncStatus = SyncStatus.PENDING_UPDATE
-        )
+        group.copy(members = group.members + GroupMember(groupId, personId, name, GroupRole.MEMBER, clock())).touched()
     }
 
     override fun removeMember(groupId: String, personId: String) = updateGroup(groupId) { group ->
-        group.copy(
-            members = group.members.filterNot { it.userId == personId },
-            updatedAt = clock(), syncStatus = SyncStatus.PENDING_UPDATE
-        )
+        group.copy(members = group.members.filterNot { it.userId == personId }).touched()
     }
 
-    override fun invite(groupId: String, contact: String) =
-        state.update { it.copy(invites = it.invites + PendingInvite(groupId, contact.trim())) }
+    // An invite changes the group's member list, so the group has to sync again (like addMember).
+    override fun invite(groupId: String, contact: String) = state.update { s ->
+        s.copy(invites = s.invites + PendingInvite(groupId, contact.trim()), groups = s.groups.map { if (it.id == groupId) it.touched() else it })
+    }
+
+    override fun removeInvite(groupId: String, contact: String) = state.update { s ->
+        s.copy(invites = s.invites - PendingInvite(groupId, contact), groups = s.groups.map { if (it.id == groupId) it.touched() else it })
+    }
 
     override fun findPerson(query: String): Person? {
         val q = query.trim().lowercase()
@@ -260,6 +260,12 @@ class InMemoryLedgerRepository(
     private fun updateMe(transform: (Person) -> Person) = state.update { s ->
         s.copy(people = s.people + (s.currentUserId to transform(s.me)))
     }
+
+    /** Marks a changed group for upload. One that was never uploaded stays PENDING_INSERT so it is created once. */
+    private fun Group.touched() = copy(
+        updatedAt = clock(),
+        syncStatus = if (syncStatus == SyncStatus.PENDING_INSERT) SyncStatus.PENDING_INSERT else SyncStatus.PENDING_UPDATE,
+    )
 
     private fun updateGroup(groupId: String, transform: (Group) -> Group) = state.update { s ->
         s.copy(groups = s.groups.map { if (it.id == groupId) transform(it) else it })

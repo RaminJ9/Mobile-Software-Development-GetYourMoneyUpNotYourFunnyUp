@@ -56,6 +56,9 @@ interface LedgerRepository {
     fun removeMember(groupId: String, personId: String)
     fun invite(groupId: String, contact: String)
 
+    /** Withdraws an invite sent with [invite] (the person never joined). */
+    fun removeInvite(groupId: String, contact: String)
+
     /** Finds an app user by email, phone number or exact name. Null when nobody matches. */
     fun findPerson(query: String): Person?
 

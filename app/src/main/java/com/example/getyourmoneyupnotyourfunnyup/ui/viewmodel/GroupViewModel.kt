@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.model.DateLabels
-import com.example.getyourmoneyupnotyourfunnyup.model.DietRule
 import com.example.getyourmoneyupnotyourfunnyup.model.LedgerSnapshot
 import com.example.getyourmoneyupnotyourfunnyup.model.MoneyFormat
 import com.example.getyourmoneyupnotyourfunnyup.model.Person
@@ -13,7 +12,6 @@ import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.activeExpenses
 import com.example.getyourmoneyupnotyourfunnyup.model.groupSettlements
-import com.example.getyourmoneyupnotyourfunnyup.model.myGroups
 import com.example.getyourmoneyupnotyourfunnyup.model.netBalances
 import com.example.getyourmoneyupnotyourfunnyup.model.settlePlan
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,19 +75,6 @@ data class SettleRowUi(
 )
 
 @Immutable
-data class MemberRowUi(
-    val id: String,
-    val name: String,
-    val avatar: AvatarUi,
-    val note: String,
-    val netCents: Long,
-    val isMe: Boolean,
-    val canRemove: Boolean,
-    val warning: String?,
-    val isInvite: Boolean = false,
-)
-
-@Immutable
 data class SplitRowUi(val name: String, val avatar: AvatarUi, val amountCents: Long, val isMe: Boolean)
 
 @Immutable
@@ -104,16 +89,6 @@ data class ExpenseSheetUi(
     val splits: List<SplitRowUi>,
     val canRemove: Boolean,
     val removeConfirm: Boolean,
-)
-
-@Immutable
-data class PersonSuggestionUi(val id: String, val name: String, val contact: String, val avatar: AvatarUi)
-
-@Immutable
-data class AddMemberUi(
-    val query: String,
-    val notFoundContact: String?,
-    val suggestions: List<PersonSuggestionUi>,
 )
 
 /** Shown while offline; [savedAtLabel] is the last sync time ("10:42") when known. */
@@ -141,9 +116,7 @@ sealed interface GroupUiState {
         val balances: List<BalanceRowUi>,
         val settleRows: List<SettleRowUi>,
         val settleCount: Int,
-        val members: List<MemberRowUi>,
         val sheet: ExpenseSheetUi?,
-        val addMember: AddMemberUi?,
         val menuOpen: Boolean,
         val confirmDelete: Boolean,
     ) : GroupUiState
@@ -163,15 +136,6 @@ sealed interface GroupAction {
     data object CancelRemoveExpense : GroupAction
     data object ConfirmRemoveExpense : GroupAction
     data class RetrySync(val expenseId: String) : GroupAction
-    data class AskRemoveMember(val memberId: String) : GroupAction
-    data object KeepMember : GroupAction
-    data class ConfirmRemoveMember(val memberId: String) : GroupAction
-    data object OpenAddMember : GroupAction
-    data object CloseAddMember : GroupAction
-    data class MemberQueryChanged(val query: String) : GroupAction
-    data object SubmitMemberQuery : GroupAction
-    data class AddSuggested(val personId: String) : GroupAction
-    data object InviteContact : GroupAction
     data object ToggleMenu : GroupAction
     data object ToggleFavourite : GroupAction
     data object AskDelete : GroupAction
@@ -182,15 +146,11 @@ data class GroupLocalState(
     val tab: GroupTab = GroupTab.Activity,
     val sheetExpenseId: String? = null,
     val removeConfirm: Boolean = false,
-    val warnMemberId: String? = null,
     val payConfirm: Boolean = false,
     /** Payments the user made from this screen: settlement id → creditor id. */
     val myPayments: Map<String, String> = emptyMap(),
     /** "Mark as paid" taps this visit: debtor id → amount. */
     val markedPaid: Map<String, Long> = emptyMap(),
-    val addMemberOpen: Boolean = false,
-    val memberQuery: String = "",
-    val memberNotFound: String? = null,
     val menuOpen: Boolean = false,
     val confirmDelete: Boolean = false,
 )
@@ -316,42 +276,7 @@ fun buildGroupUiState(
     }
     val settleRows = paidRows + planRows + markedRows
 
-    // Members.
     val organiser = group.createdBy
-    val members = memberIds.map { id ->
-        val person = snapshot.person(id)
-        val value = net[id] ?: 0L
-        val diet = when {
-            DietRule.NO_ALCOHOL in person.dietRules -> "no alcohol"
-            DietRule.NO_MEAT in person.dietRules -> "vegetarian"
-            else -> null
-        }
-        val note = when {
-            id == me -> "That’s you"
-            id == organiser && diet != null -> "Organiser · $diet"
-            id == organiser -> "Organiser"
-            diet != null -> diet.replaceFirstChar { it.uppercase() }
-            else -> "Member"
-        }
-        val warning = if (local.warnMemberId == id) {
-            val balance = when {
-                value < 0 -> " still owes ${MoneyFormat.kr(value)} kr"
-                value > 0 -> " is still owed ${MoneyFormat.kr(value)} kr"
-                else -> " has no open balance"
-            }
-            person.name + balance + ". Removing them can leave the group unbalanced."
-        } else null
-        MemberRowUi(
-            id = id, name = snapshot.displayName(id), avatar = person.avatar(me), note = note, netCents = value,
-            isMe = id == me, canRemove = id != me, warning = warning,
-        )
-    } + snapshot.invites.filter { it.groupId == groupId }.map { invite ->
-        MemberRowUi(
-            id = "invite:${invite.contact}", name = invite.contact, avatar = AvatarUi(invite.contact.take(1).uppercase(), 8),
-            note = "Invited · joins when they sign up", netCents = 0, isMe = false, canRemove = false, warning = null,
-            isInvite = true,
-        )
-    }
 
     // Expense details sheet.
     val sheet = local.sheetExpenseId?.let { id -> expenses.firstOrNull { it.id == id } }?.let { e ->
@@ -365,21 +290,6 @@ fun buildGroupUiState(
             canRemove = e.payerId == me, removeConfirm = local.removeConfirm,
         )
     }
-
-    // Add member: people the user has split with who are not in this group yet.
-    val addMember = if (local.addMemberOpen) {
-        val shared = snapshot.myGroups().flatMap { g -> g.members.map { it.userId } }
-            .filter { it != me && it !in memberIds }
-            .groupingBy { it }.eachCount()
-            .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { snapshot.person(it.key).name })
-            .take(4)
-            .map { snapshot.person(it.key) }
-        AddMemberUi(
-            query = local.memberQuery,
-            notFoundContact = local.memberNotFound,
-            suggestions = shared.map { PersonSuggestionUi(it.id, it.name, it.contact, it.avatar(me)) },
-        )
-    } else null
 
     return GroupUiState.Content(
         offline = if (online) null else OfflineUi(snapshot.lastSyncedAt?.let(DateLabels::time)),
@@ -398,9 +308,7 @@ fun buildGroupUiState(
         balances = balances,
         settleRows = settleRows,
         settleCount = plan.size,
-        members = members,
         sheet = sheet,
-        addMember = addMember,
         menuOpen = local.menuOpen,
         confirmDelete = local.confirmDelete,
     )
@@ -427,7 +335,7 @@ class GroupViewModel(
         val snapshot = ledger.snapshot.value
         val me = snapshot.currentUserId
         when (action) {
-            is GroupAction.SelectTab -> local.update { it.copy(tab = action.tab, warnMemberId = null) }
+            is GroupAction.SelectTab -> local.update { it.copy(tab = action.tab) }
             GroupAction.AskPay -> local.update { it.copy(payConfirm = true) }
             GroupAction.CancelPay -> local.update { it.copy(payConfirm = false) }
             GroupAction.ConfirmPay -> {
@@ -456,38 +364,6 @@ class GroupViewModel(
                 local.update { it.copy(sheetExpenseId = null, removeConfirm = false) }
             }
             is GroupAction.RetrySync -> ledger.retrySync(action.expenseId)
-            is GroupAction.AskRemoveMember -> {
-                val balance = snapshot.netBalances(groupId)[action.memberId] ?: 0L
-                if (balance == 0L) ledger.removeMember(groupId, action.memberId)
-                else local.update { it.copy(warnMemberId = action.memberId) }
-            }
-            GroupAction.KeepMember -> local.update { it.copy(warnMemberId = null) }
-            is GroupAction.ConfirmRemoveMember -> {
-                ledger.removeMember(groupId, action.memberId)
-                local.update { it.copy(warnMemberId = null) }
-            }
-            GroupAction.OpenAddMember -> local.update { it.copy(addMemberOpen = true, memberQuery = "", memberNotFound = null) }
-            GroupAction.CloseAddMember -> local.update { it.copy(addMemberOpen = false, memberQuery = "", memberNotFound = null) }
-            is GroupAction.MemberQueryChanged -> local.update { it.copy(memberQuery = action.query, memberNotFound = null) }
-            GroupAction.SubmitMemberQuery -> {
-                val query = local.value.memberQuery.trim()
-                if (query.isEmpty()) return
-                val person = ledger.findPerson(query)
-                if (person != null) {
-                    ledger.addMember(groupId, person.id)
-                    local.update { it.copy(addMemberOpen = false, memberQuery = "", tab = GroupTab.Members) }
-                } else {
-                    local.update { it.copy(memberNotFound = query) }
-                }
-            }
-            is GroupAction.AddSuggested -> {
-                ledger.addMember(groupId, action.personId)
-                local.update { it.copy(addMemberOpen = false, memberQuery = "", tab = GroupTab.Members) }
-            }
-            GroupAction.InviteContact -> {
-                local.value.memberNotFound?.let { ledger.invite(groupId, it) }
-                local.update { it.copy(addMemberOpen = false, memberQuery = "", memberNotFound = null, tab = GroupTab.Members) }
-            }
             GroupAction.ToggleMenu -> local.update { it.copy(menuOpen = !it.menuOpen) }
             GroupAction.ToggleFavourite -> {
                 ledger.toggleFavourite(groupId)

@@ -48,20 +48,20 @@ import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppButton
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIcon
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIcons
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.BalanceChip
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.ChipTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ConfirmButtons
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.EmptyCard
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.GroupAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.OfflineBanner
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.OneLine
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.PersonAvatar
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.SegmentedTabs
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.Spinner
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.dashedBorder
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.groupMembersData
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.GroupMembersContent
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.MembersAction
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppTypography
@@ -71,19 +71,20 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.BalanceRowUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupAction
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupHero
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupLocalState
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupMembersUiState
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupMembersViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupTab
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupUiState
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.LedgerRowKind
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.LedgerRowUi
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.MemberRowUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.PayState
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SettleKind
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SettleRowUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.appViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.buildGroupUiState
 
-/** View group (with the members, balances and expense-detail flows). */
+/** View group: our Activity and Balances tabs, and Bashir's Members tab ([GroupMembersContent]). */
 @Composable
 fun GroupRoute(
     groupId: String,
@@ -93,9 +94,27 @@ fun GroupRoute(
 ) {
     val viewModel = appViewModel(key = "group:$groupId") { GroupViewModel(it.ledgerRepository, groupId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val membersViewModel = appViewModel(key = "members:$groupId") {
+        GroupMembersViewModel(it.groupsSource.members(groupId), it.groupsSource, it.groupsSource, it.groupsSource)
+    }
+    val members by membersViewModel.state.collectAsStateWithLifecycle()
     GroupScreen(
         state = state,
         onAction = viewModel::onAction,
+        members = members,
+        onMembersAction = { action ->
+            when (action) {
+                is MembersAction.AskRemove -> membersViewModel.askRemove(action.userId)
+                MembersAction.Keep -> membersViewModel.keepMember()
+                is MembersAction.ConfirmRemove -> membersViewModel.confirmRemove(action.userId)
+                MembersAction.OpenAdd -> membersViewModel.openAddMember()
+                MembersAction.CloseAdd -> membersViewModel.closeAddMember()
+                is MembersAction.Query -> membersViewModel.setAddQuery(action.value)
+                MembersAction.LookUp -> membersViewModel.lookUpMember()
+                MembersAction.Invite -> membersViewModel.sendInvite()
+                is MembersAction.AddSuggestion -> membersViewModel.addSuggestion(action.contact)
+            }
+        },
         onBack = onBack,
         onAddExpense = { onAddExpense(groupId) },
         onDelete = {
@@ -110,6 +129,8 @@ fun GroupRoute(
 fun GroupScreen(
     state: GroupUiState,
     onAction: (GroupAction) -> Unit,
+    members: GroupMembersUiState,
+    onMembersAction: (MembersAction) -> Unit,
     onBack: () -> Unit,
     onAddExpense: () -> Unit,
     onDelete: () -> Unit,
@@ -118,9 +139,8 @@ fun GroupScreen(
     when (state) {
         GroupUiState.Missing -> MissingGroup(onBack, modifier)
         is GroupUiState.Content -> {
-            GroupContent(state, onAction, onBack, onAddExpense, modifier)
+            GroupContent(state, onAction, members, onMembersAction, onBack, onAddExpense, modifier)
             state.sheet?.let { ExpenseDetailsSheet(it, onAction) }
-            state.addMember?.let { AddMemberSheet(it, onAction) }
             if (state.confirmDelete) {
                 AlertDialog(
                     onDismissRequest = { onAction(GroupAction.CancelDelete) },
@@ -150,6 +170,8 @@ fun GroupScreen(
 private fun GroupContent(
     state: GroupUiState.Content,
     onAction: (GroupAction) -> Unit,
+    members: GroupMembersUiState,
+    onMembersAction: (MembersAction) -> Unit,
     onBack: () -> Unit,
     onAddExpense: () -> Unit,
     modifier: Modifier,
@@ -221,7 +243,7 @@ private fun GroupContent(
                         .padding(vertical = 6.dp),
                 ) {
                     state.memberStack.forEachIndexed { index, avatar ->
-                        PersonAvatar(
+                        PaletteAvatar(
                             avatar.initial, avatar.paletteIndex, size = 32.dp, ringColor = AppColors.White,
                             modifier = Modifier.offset(x = (-10 * index).dp),
                         )
@@ -244,7 +266,11 @@ private fun GroupContent(
         when (state.tab) {
             GroupTab.Activity -> ActivityTab(state, onAction, onAddExpense)
             GroupTab.Balances -> BalancesTab(state, onAction)
-            GroupTab.Members -> MembersTab(state.members, onAction)
+            GroupTab.Members -> when (members) {
+                is GroupMembersUiState.Success -> GroupMembersContent(members, onMembersAction)
+                is GroupMembersUiState.Error -> Text(members.message, style = AppTypography.Body, color = AppColors.Ink600)
+                GroupMembersUiState.Loading -> Spinner()
+            }
         }
     }
 }
@@ -520,8 +546,8 @@ private fun SettleRow(row: SettleRowUi, onAction: (GroupAction) -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Row {
-                PersonAvatar(row.from.initial, row.from.paletteIndex, size = 32.dp, ringColor = AppColors.White)
-                PersonAvatar(row.to.initial, row.to.paletteIndex, size = 32.dp, ringColor = AppColors.White, modifier = Modifier.offset(x = (-8).dp))
+                PaletteAvatar(row.from.initial, row.from.paletteIndex, size = 32.dp, ringColor = AppColors.White)
+                PaletteAvatar(row.to.initial, row.to.paletteIndex, size = 32.dp, ringColor = AppColors.White, modifier = Modifier.offset(x = (-8).dp))
             }
             Text(row.label, Modifier.weight(1f), style = jakarta(14, FontWeight.SemiBold), color = AppColors.Ink900)
             Text(
@@ -573,95 +599,6 @@ private fun SettleRow(row: SettleRowUi, onAction: (GroupAction) -> Unit) {
     }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Members tab
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-private fun MembersTab(members: List<MemberRowUi>, onAction: (GroupAction) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DashedAddButton("Add member", onClick = { onAction(GroupAction.OpenAddMember) })
-        members.forEach { MemberRow(it, onAction) }
-    }
-}
-
-@Composable
-internal fun DashedAddButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, height: Int = 52) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height.dp)
-            .dashedBorder(AppColors.Green200, 18.dp)
-            .clickable(role = Role.Button, onClick = onClick),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AppIcon(AppIcons.Plus, size = 18.dp, strokeWidth = 2.2f, tint = AppColors.Green700)
-        Text(text, style = jakarta(15, FontWeight.Bold), color = AppColors.Green700)
-    }
-}
-
-@Composable
-private fun MemberRow(row: MemberRowUi, onAction: (GroupAction) -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .border(1.dp, if (row.warning != null) AppColors.Amber400 else AppColors.LineSoft, RoundedCornerShape(18.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (row.isInvite) {
-                Box(
-                    Modifier.size(44.dp).dashedBorder(AppColors.Amber500, 22.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text(row.avatar.initial, style = jakarta(17, FontWeight.ExtraBold), color = AppColors.Amber800) }
-            } else {
-                PersonAvatar(row.avatar.initial, row.avatar.paletteIndex)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                OneLine(row.name, AppTypography.ItemTitle, AppColors.Ink900)
-                Text(row.note, style = AppTypography.Caption, color = AppColors.Ink600)
-            }
-            when {
-                row.isInvite -> BalanceChip("Invited", ChipTone.Neutral)
-                row.netCents < 0 -> BalanceChip(
-                    (if (row.isMe) "You owe " else "Owes ") + MoneyFormat.kr(row.netCents), ChipTone.Owe,
-                )
-                row.netCents > 0 -> BalanceChip("Owed ${MoneyFormat.kr(row.netCents)}", ChipTone.Owed)
-                else -> BalanceChip("Settled", ChipTone.Neutral)
-            }
-            if (row.canRemove) {
-                Box(
-                    Modifier
-                        .size(40.dp, 44.dp)
-                        .clickable(role = Role.Button) { onAction(GroupAction.AskRemoveMember(row.id)) }
-                        .semantics { contentDescription = "Remove ${row.name}" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    AppIcon(AppIcons.Close, size = 18.dp, strokeWidth = 2f, tint = AppColors.Ink400)
-                }
-            }
-        }
-        row.warning?.let { warning ->
-            Column(
-                Modifier.fillMaxWidth().background(AppColors.Amber100, RoundedCornerShape(14.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(warning, style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp), color = AppColors.Amber800)
-                ConfirmButtons(
-                    onCancel = { onAction(GroupAction.KeepMember) },
-                    onConfirm = { onAction(GroupAction.ConfirmRemoveMember(row.id)) },
-                    cancelText = "Keep ${row.name}",
-                    confirmText = "Remove anyway",
-                    cancelTone = ButtonTone.OnTint,
-                    confirmTone = ButtonTone.WarningOutline,
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun MissingGroup(onBack: () -> Unit, modifier: Modifier) {
     Column(
@@ -684,23 +621,29 @@ private fun preview(groupId: String, local: GroupLocalState = GroupLocalState())
     return buildGroupUiState(DemoLedger.create(now), groupId, true, local, now)
 }
 
+private fun previewMembers(groupId: String, warningFor: String? = null) = GroupMembersUiState.Success(
+    groupMembersData(DemoLedger.create(System.currentTimeMillis()), groupId), warningFor = warningFor, canEdit = true,
+)
+
 @Preview(name = "Group – you owe", showBackground = true, widthDp = 412, heightDp = 1100)
 @Composable
 private fun GroupOwePreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { GroupScreen(preview("ski"), {}, {}, {}, {}) }
+    GetYourMoneyUpNotYourFunnyUpTheme { GroupScreen(preview("ski"), {}, previewMembers("ski"), {}, {}, {}, {}) }
 }
 
 @Preview(name = "Group – balances", showBackground = true, widthDp = 412, heightDp = 1100)
 @Composable
 private fun GroupBalancesPreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { GroupScreen(preview("ski", GroupLocalState(tab = GroupTab.Balances)), {}, {}, {}, {}) }
+    GetYourMoneyUpNotYourFunnyUpTheme { GroupScreen(preview("ski", GroupLocalState(tab = GroupTab.Balances)), {}, previewMembers("ski"), {}, {}, {}, {}) }
 }
 
 @Preview(name = "Group – you're owed / members", showBackground = true, widthDp = 412, heightDp = 1100)
 @Composable
 private fun GroupMembersPreview() {
     GetYourMoneyUpNotYourFunnyUpTheme {
-        GroupScreen(preview("kol", GroupLocalState(tab = GroupTab.Members, warnMemberId = "ida")), {}, {}, {}, {})
+        GroupScreen(
+            preview("kol", GroupLocalState(tab = GroupTab.Members)), {}, previewMembers("kol", warningFor = "ida"), {}, {}, {}, {},
+        )
     }
 }
 

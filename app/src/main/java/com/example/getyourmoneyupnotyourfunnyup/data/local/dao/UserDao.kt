@@ -66,6 +66,38 @@ class UserDao(private val database: AppDatabase) {
         }
     }
 
+    /** Phone numbers are stored normalised (`+4522814017`), so callers pass a normalised value. */
+    fun getUserByPhone(phone: String): UserEntity? {
+        val db = database.readableDatabase
+        db.query(
+            UsersTable.TABLE_NAME,
+            null,
+            "${UsersTable.COL_PHONE} = ?",
+            arrayOf(phone),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.toUserEntity() else null
+        }
+    }
+
+    /** Case-insensitive email lookup used by "Add member" (emails are typed by hand). */
+    fun getUserByEmailIgnoringCase(email: String): UserEntity? {
+        val db = database.readableDatabase
+        db.query(
+            UsersTable.TABLE_NAME,
+            null,
+            "LOWER(${UsersTable.COL_EMAIL}) = LOWER(?)",
+            arrayOf(email),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.toUserEntity() else null
+        }
+    }
+
     fun getAllUsers(): List<UserEntity> {
         val db = database.readableDatabase
         val users = mutableListOf<UserEntity>()
@@ -121,6 +153,7 @@ class UserDao(private val database: AppDatabase) {
         put(UsersTable.COL_EMAIL, email)
         put(UsersTable.COL_DISPLAY_NAME, displayName)
         put(UsersTable.COL_PHOTO_URL, photoUrl)
+        put(UsersTable.COL_PHONE, phone)
         put(UsersTable.COL_COUNT, count)
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationsEnabled) 1 else 0)
         put(UsersTable.COL_SYNC_STATUS, Converters.fromSyncStatus(syncStatus))
@@ -130,11 +163,13 @@ class UserDao(private val database: AppDatabase) {
     private fun Cursor.toUserEntity(): UserEntity {
         val photoIdx = getColumnIndexOrThrow(UsersTable.COL_PHOTO_URL)
         val countIdx = getColumnIndex(UsersTable.COL_COUNT)
+        val phoneIdx = getColumnIndex(UsersTable.COL_PHONE)
         return UserEntity(
             id = getString(getColumnIndexOrThrow(UsersTable.COL_ID)),
             email = getString(getColumnIndexOrThrow(UsersTable.COL_EMAIL)),
             displayName = getString(getColumnIndexOrThrow(UsersTable.COL_DISPLAY_NAME)),
             photoUrl = if (isNull(photoIdx)) null else getString(photoIdx),
+            phone = if (phoneIdx >= 0 && !isNull(phoneIdx)) getString(phoneIdx) else null,
             count = if (countIdx >= 0 && !isNull(countIdx)) getInt(countIdx) else 0,
             notificationsEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0,
             syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(UsersTable.COL_SYNC_STATUS))),

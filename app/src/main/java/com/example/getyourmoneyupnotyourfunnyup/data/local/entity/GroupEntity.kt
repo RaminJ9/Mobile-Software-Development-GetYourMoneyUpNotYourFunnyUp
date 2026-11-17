@@ -12,7 +12,9 @@ data class GroupEntity(
     val createdBy: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val syncStatus: SyncStatus = SyncStatus.SYNCED
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+    val colourIndex: Int = 0,
+    val isFavourite: Boolean = false
 ) {
     fun toDomain(members: List<GroupMember> = emptyList()): Group = Group(
         id = id,

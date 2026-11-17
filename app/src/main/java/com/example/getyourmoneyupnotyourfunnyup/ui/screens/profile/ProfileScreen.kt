@@ -45,7 +45,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppSwitch
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.LabeledTextField
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.PersonAvatar
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
@@ -148,7 +148,7 @@ fun ProfileScreen(
 @Composable
 private fun ProfileHeader(state: ProfileUiState, onAction: (ProfileAction) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        PersonAvatar(state.initial, -1, size = 72.dp)
+        PaletteAvatar(state.initial, -1, size = 72.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(state.name, style = jakarta(22, FontWeight.ExtraBold, -0.02f), color = AppColors.Ink900)
             Text(state.email, style = jakarta(14, FontWeight.Medium), color = AppColors.Ink600)
@@ -166,7 +166,7 @@ private fun EditProfile(state: ProfileUiState, onAction: (ProfileAction) -> Unit
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.size(72.dp)) {
-                PersonAvatar(state.draftName.trim().take(1).uppercase().ifEmpty { state.initial }, -1, size = 72.dp)
+                PaletteAvatar(state.draftName.trim().take(1).uppercase().ifEmpty { state.initial }, -1, size = 72.dp)
                 Box(
                     Modifier
                         .align(Alignment.BottomEnd)

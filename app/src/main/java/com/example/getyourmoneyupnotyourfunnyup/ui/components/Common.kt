@@ -31,15 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -85,7 +79,7 @@ fun GroupAvatar(
 
 /** Round person avatar. "You" (negative palette index) is always Green 300. */
 @Composable
-fun PersonAvatar(
+fun PaletteAvatar(
     initial: String,
     paletteIndex: Int,
     modifier: Modifier = Modifier,
@@ -290,7 +284,7 @@ fun LabeledTextField(
                 }
             }
         }
-        AppTextField(
+        TextFieldBox(
             value = value,
             onValueChange = onValueChange,
             placeholder = placeholder,
@@ -309,7 +303,7 @@ fun LabeledTextField(
 }
 
 @Composable
-fun AppTextField(
+private fun TextFieldBox(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -486,23 +480,3 @@ fun FillingScrollColumn(
     }
 }
 
-/** Dashed outline ("Add member", "Add item", invited people). */
-fun Modifier.dashedBorder(
-    color: Color,
-    corner: Dp,
-    strokeWidth: Dp = 1.5.dp,
-    dash: Dp = 5.dp,
-    gap: Dp = 4.dp,
-): Modifier = this.drawBehind {
-    val inset = strokeWidth.toPx() / 2
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(inset, inset),
-        size = Size(size.width - inset * 2, size.height - inset * 2),
-        cornerRadius = CornerRadius(corner.toPx() - inset),
-        style = Stroke(
-            width = strokeWidth.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash.toPx(), gap.toPx())),
-        ),
-    )
-}

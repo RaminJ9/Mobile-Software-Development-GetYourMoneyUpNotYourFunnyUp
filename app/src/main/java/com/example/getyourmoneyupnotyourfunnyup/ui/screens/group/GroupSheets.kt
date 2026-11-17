@@ -35,17 +35,15 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIcons
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ConfirmButtons
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.PersonAvatar
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumb
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.SyncPill
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.MemberSearch
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppShapes
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppTypography
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.jakarta
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AddMemberUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ExpenseSheetUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupAction
 
@@ -129,7 +127,7 @@ fun ExpenseDetailsSheet(sheet: ExpenseSheetUi, onAction: (GroupAction) -> Unit) 
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        PersonAvatar(split.avatar.initial, split.avatar.paletteIndex, size = 36.dp)
+                        PaletteAvatar(split.avatar.initial, split.avatar.paletteIndex, size = 36.dp)
                         Text(split.name, Modifier.weight(1f), style = jakarta(15, FontWeight.SemiBold), color = AppColors.Ink900)
                         Text("${MoneyFormat.kr(split.amountCents)} kr", style = jakarta(15, FontWeight.Bold), color = AppColors.Ink900)
                     }
@@ -169,48 +167,6 @@ fun ExpenseDetailsSheet(sheet: ExpenseSheetUi, onAction: (GroupAction) -> Unit) 
                     textAlign = TextAlign.Center,
                 )
             }
-        }
-    }
-}
-
-/** Add member view (with the S-Error "User does not exist" state). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddMemberSheet(state: AddMemberUi, onAction: (GroupAction) -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = { onAction(GroupAction.CloseAddMember) },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = AppShapes.BottomSheet,
-        containerColor = AppColors.White,
-        scrimColor = AppExtraColors.Scrim,
-        dragHandle = { SheetHandle() },
-    ) {
-        Column(
-            Modifier
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Add member", Modifier.weight(1f), style = jakarta(20, FontWeight.ExtraBold), color = AppColors.Ink900)
-                IconButton(
-                    onClick = { onAction(GroupAction.CloseAddMember) },
-                    modifier = Modifier.semantics { contentDescription = "Close" },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = AppColors.Surface),
-                ) {
-                    AppIcon(AppIcons.Close, size = 18.dp, strokeWidth = 2.2f, tint = AppColors.Ink900)
-                }
-            }
-            MemberSearch(
-                query = state.query,
-                onQueryChange = { onAction(GroupAction.MemberQueryChanged(it)) },
-                onSubmit = { onAction(GroupAction.SubmitMemberQuery) },
-                notFoundContact = state.notFoundContact,
-                onInvite = { onAction(GroupAction.InviteContact) },
-                suggestions = state.suggestions,
-                onAddSuggestion = { onAction(GroupAction.AddSuggested(it)) },
-            )
         }
     }
 }

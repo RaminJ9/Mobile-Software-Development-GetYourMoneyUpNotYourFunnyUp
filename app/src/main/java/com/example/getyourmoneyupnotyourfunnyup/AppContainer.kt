@@ -9,6 +9,7 @@ import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectionState
 import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectivityObserver
 import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.LedgerDashboardSource
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.LedgerGroupsSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,6 +42,9 @@ class AppContainer(context: Context) {
 
     /** Feeds the Home and Activity screens from [ledgerRepository]. */
     val dashboardSource: LedgerDashboardSource by lazy { LedgerDashboardSource(ledgerRepository) }
+
+    /** Feeds the Groups, Create group and Members screens from [ledgerRepository]. */
+    val groupsSource: LedgerGroupsSource by lazy { LedgerGroupsSource(ledgerRepository) }
 }
 
 class GetYourMoneyUpApplication : Application() {

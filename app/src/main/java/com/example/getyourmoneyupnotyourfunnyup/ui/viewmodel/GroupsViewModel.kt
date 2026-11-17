@@ -1,107 +1,119 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
-import com.example.getyourmoneyupnotyourfunnyup.model.LedgerSnapshot
-import com.example.getyourmoneyupnotyourfunnyup.model.MoneyFormat
-import com.example.getyourmoneyupnotyourfunnyup.model.myGroups
+import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.DashboardGroup
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-enum class GroupsFilter(val label: String) {
-    All("All"),
-    Favourites("Favourites"),
-    Owe("You owe"),
-    Owed("Owed to you"),
-    Settled("Settled");
-
-    fun matches(row: GroupRowUi): Boolean = when (this) {
-        All -> true
-        Favourites -> row.isFavourite
-        Owe -> row.netCents < 0
-        Owed -> row.netCents > 0
-        Settled -> row.netCents == 0L
+sealed interface GroupsUiState {
+    data object Loading : GroupsUiState
+    data class Error(val message: String) : GroupsUiState
+    data class Success(
+        val data: GroupsListData,
+        val filter: GroupListFilter = GroupListFilter.All,
+        val query: String = "",
+        /** Optimistic favourite toggles waiting for the local write to finish. */
+        val favouriteOverrides: Map<String, Boolean> = emptyMap(),
+        val canFavourite: Boolean = false,
+        val message: String? = null,
+        val sourceError: String? = null
+    ) : GroupsUiState {
+        val groups: List<DashboardGroup> = data.groups.map { group ->
+            favouriteOverrides[group.group.id]?.let { group.copy(isFavourite = it) } ?: group
+        }
+        val counts: Map<GroupListFilter, Int> = filterCounts(groups, data.balancesByGroup)
+        val shown: List<DashboardGroup> = visibleGroups(groups, data.balancesByGroup, filter, query)
+        val summary: GroupsSummary? = groupsSummary(filter, shown, data.balancesByGroup, query)
+        val empty: EmptyGroupsMessage? = if (shown.isEmpty()) emptyGroupsMessage(filter, query) else null
+        fun balanceFor(groupId: String): Long? = data.balancesByGroup?.get(groupId)
     }
 }
 
-enum class SummaryTone { Owe, Owed }
+class GroupsViewModel(
+    private val source: Flow<GroupsListData>,
+    private val favourites: GroupFavouriteActions? = null
+) : ViewModel() {
+    private val mutableState = MutableStateFlow<GroupsUiState>(GroupsUiState.Loading)
+    val state = mutableState.asStateFlow()
+    private var observation: Job? = null
+    private val writing = mutableSetOf<String>()
 
-@Immutable
-data class GroupsUiState(
-    val query: String,
-    val filter: GroupsFilter,
-    val counts: Map<GroupsFilter, Int>,
-    val rows: List<GroupRowUi>,
-    /** "You owe 412,50 kr across 3 groups" — only for the You owe / Owed to you filters. */
-    val summary: String?,
-    val summaryTone: SummaryTone,
-    val emptyTitle: String?,
-    val emptyText: String,
-)
+    init { observe() }
 
-sealed interface GroupsAction {
-    data class QueryChanged(val query: String) : GroupsAction
-    data class SelectFilter(val filter: GroupsFilter) : GroupsAction
-    data class ToggleFavourite(val groupId: String) : GroupsAction
-}
-
-data class GroupsLocalState(val query: String = "", val filter: GroupsFilter = GroupsFilter.All)
-
-fun buildGroupsUiState(snapshot: LedgerSnapshot, local: GroupsLocalState, now: Long): GroupsUiState {
-    val all = snapshot.myGroups().map { snapshot.groupRow(it, now) }.sortedByDescending { it.lastActiveAt }
-    val q = local.query.trim().lowercase()
-    val list = all.filter(local.filter::matches).filter { q.isEmpty() || it.name.lowercase().contains(q) }
-
-    val summary = when {
-        q.isNotEmpty() || list.isEmpty() -> null
-        local.filter == GroupsFilter.Owe ->
-            "You owe ${MoneyFormat.kr(list.sumOf { it.netCents })} kr across ${groupsLabel(list.size)}"
-        local.filter == GroupsFilter.Owed ->
-            "You’re owed ${MoneyFormat.kr(list.sumOf { it.netCents })} kr across ${groupsLabel(list.size)}"
-        else -> null
+    fun retryObservation() {
+        val current = mutableState.value
+        if (observation?.isActive != true &&
+            (current is GroupsUiState.Error || current is GroupsUiState.Success && current.sourceError != null)) observe()
     }
-    val (emptyTitle, emptyText) = when {
-        list.isNotEmpty() -> null to ""
-        q.isNotEmpty() -> "No groups match “${local.query.trim()}”" to "Check the spelling or try another filter."
-        local.filter == GroupsFilter.Favourites ->
-            "No favourites yet" to "Tap the star on a group to pin it here and on your home screen."
-        local.filter == GroupsFilter.Owe -> "You don’t owe anyone" to "All your groups are square."
-        all.isEmpty() -> "No groups yet" to "Create a group for your flat, a trip or Friday bar."
-        else -> "Nothing here" to "All your groups are square."
+
+    private fun observe() {
+        observation = viewModelScope.launch {
+            try {
+                source.collect { data ->
+                    val current = mutableState.value as? GroupsUiState.Success
+                    mutableState.value = if (current == null || current.data.userId != data.userId) {
+                        GroupsUiState.Success(data, canFavourite = favourites != null)
+                    } else {
+                        // Drop an optimistic value once the stored snapshot agrees with it.
+                        val overrides = current.favouriteOverrides.filter { (id, fav) ->
+                            id in writing || data.groups.firstOrNull { it.group.id == id }?.isFavourite != fav
+                        }.filterKeys { id -> data.groups.any { it.group.id == id } }
+                        current.copy(data = data, favouriteOverrides = overrides, sourceError = null)
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val current = mutableState.value as? GroupsUiState.Success
+                mutableState.value = current?.copy(sourceError = "Couldn't refresh. Showing your saved groups.")
+                    ?: GroupsUiState.Error(error.message ?: "Couldn't load your groups")
+            }
+        }
     }
-    return GroupsUiState(
-        query = local.query,
-        filter = local.filter,
-        counts = GroupsFilter.entries.associateWith { filter -> all.count(filter::matches) },
-        rows = list,
-        summary = summary,
-        summaryTone = if (local.filter == GroupsFilter.Owe) SummaryTone.Owe else SummaryTone.Owed,
-        emptyTitle = emptyTitle,
-        emptyText = emptyText,
-    )
-}
 
-private fun groupsLabel(count: Int) = if (count == 1) "1 group" else "$count groups"
+    private fun update(change: (GroupsUiState.Success) -> GroupsUiState.Success) {
+        mutableState.update { if (it is GroupsUiState.Success) change(it) else it }
+    }
 
-/** S3 Groups tab with S-filter (search + filters) and S-empty states. */
-class GroupsViewModel(private val ledger: LedgerRepository) : ViewModel() {
-    private val local = MutableStateFlow(GroupsLocalState())
+    fun setQuery(query: String) = update { it.copy(query = query.take(80)) }
+    fun selectFilter(filter: GroupListFilter) = update { it.copy(filter = filter) }
+    fun dismissMessage() = update { it.copy(message = null) }
 
-    val uiState: StateFlow<GroupsUiState> = combine(ledger.snapshot, local) { snapshot, localState ->
-        buildGroupsUiState(snapshot, localState, ledger.now())
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, buildGroupsUiState(ledger.snapshot.value, local.value, ledger.now()))
-
-    fun onAction(action: GroupsAction) {
-        when (action) {
-            is GroupsAction.QueryChanged -> local.update { it.copy(query = action.query) }
-            is GroupsAction.SelectFilter -> local.update { it.copy(filter = action.filter) }
-            is GroupsAction.ToggleFavourite -> ledger.toggleFavourite(action.groupId)
+    fun toggleFavourite(groupId: String) {
+        val actions = favourites ?: return
+        val current = mutableState.value as? GroupsUiState.Success ?: return
+        val group = current.groups.firstOrNull { it.group.id == groupId } ?: return
+        if (groupId in writing) return
+        val next = !group.isFavourite
+        writing += groupId
+        update { it.copy(favouriteOverrides = it.favouriteOverrides + (groupId to next), message = null) }
+        viewModelScope.launch {
+            try {
+                actions.setFavourite(groupId, next)
+                writing -= groupId
+                update { state ->
+                    val stored = state.data.groups.firstOrNull { it.group.id == groupId }?.isFavourite
+                    if (stored == next) state.copy(favouriteOverrides = state.favouriteOverrides - groupId) else state
+                }
+            } catch (error: CancellationException) {
+                writing -= groupId
+                throw error
+            } catch (error: Exception) {
+                writing -= groupId
+                update {
+                    it.copy(
+                        favouriteOverrides = it.favouriteOverrides - groupId,
+                        message = "Couldn't update ${group.group.name}. Try again."
+                    )
+                }
+            }
         }
     }
 }

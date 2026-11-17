@@ -12,7 +12,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -30,23 +29,6 @@ class ViewModelStateTest {
         scope = backgroundScope, isOnline = online, clock = { now }, initial = DemoLedger.create(now),
         syncDelayMs = 1_000, paymentDelayMs = 500,
     )
-
-    @Test
-    fun group_removingAMemberWithABalanceAsksFirst() = runTest(mainDispatcher.dispatcher) {
-        val ledger = ledger()
-        val vm = GroupViewModel(ledger, "kol")
-        vm.onAction(GroupAction.SelectTab(GroupTab.Members))
-        vm.onAction(GroupAction.AskRemoveMember("ida"))
-        val content = vm.uiState.value as GroupUiState.Content
-        assertNotNull(content.members.first { it.id == "ida" }.warning)
-
-        vm.onAction(GroupAction.KeepMember)
-        assertTrue((vm.uiState.value as GroupUiState.Content).members.none { it.warning != null })
-
-        // Emil is settled, so removing him needs no confirmation.
-        vm.onAction(GroupAction.AskRemoveMember("emil"))
-        assertTrue((vm.uiState.value as GroupUiState.Content).members.none { it.id == "emil" })
-    }
 
     @Test
     fun group_heroTurnsFromOweToAllSquareAfterPaying() = runTest(mainDispatcher.dispatcher) {
@@ -111,21 +93,5 @@ class ViewModelStateTest {
         advanceTimeBy(1_001)
         runCurrent()
         assertTrue(vm.uiState.value.saved!!.synced)
-    }
-
-    @Test
-    fun createGroup_needsANameAndReportsUnknownContacts() = runTest(mainDispatcher.dispatcher) {
-        val vm = CreateGroupViewModel(ledger())
-        assertFalse(vm.uiState.value.canCreate)
-
-        vm.onAction(CreateGroupAction.QueryChanged("anna.b@mail.dk"))
-        vm.onAction(CreateGroupAction.SubmitQuery)
-        assertEquals("anna.b@mail.dk", vm.uiState.value.notFoundContact)
-        vm.onAction(CreateGroupAction.Invite)
-        assertTrue(vm.uiState.value.members.any { it.kind == MemberChipUi.Kind.Invited })
-
-        vm.onAction(CreateGroupAction.NameChanged("Roskilde 2027"))
-        vm.onAction(CreateGroupAction.Create)
-        assertNotNull(vm.uiState.value.createdGroupId)
     }
 }

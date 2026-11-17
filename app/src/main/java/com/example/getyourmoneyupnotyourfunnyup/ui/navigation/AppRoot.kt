@@ -46,6 +46,8 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.jakarta
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ActivityViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthMode
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.CreateGroupViewModel
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SessionViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.appViewModel
@@ -96,8 +98,13 @@ fun AppRoot(modifier: Modifier = Modifier) {
                     },
                 )
                 Destination.CreateGroup -> CreateGroupRoute(
+                    viewModel = appViewModel {
+                        CreateGroupViewModel(it.groupsSource.currentUser(), it.groupsSource, it.groupsSource, it.groupsSource.knownContacts)
+                    },
                     onBack = { navigator.pop() },
                     onCreated = { navigator.replace(Destination.GroupDetail(it)) },
+                    // Full screen without the bottom bar, so it keeps clear of both system bars.
+                    modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
                 )
                 is Destination.Scan -> ScanRoute(initialGroupId = destination.groupId, onClose = { navigator.pop() })
                 else -> MainScaffold(navigator, destination) {
@@ -113,8 +120,10 @@ fun AppRoot(modifier: Modifier = Modifier) {
                             modifier = Modifier.statusBarsPadding(),
                         )
                         Destination.Groups -> GroupsRoute(
-                            onOpenGroup = { navigator.navigate(Destination.GroupDetail(it)) },
+                            viewModel = appViewModel { GroupsViewModel(it.groupsSource.groupsList, it.groupsSource) },
                             onCreateGroup = { navigator.navigate(Destination.CreateGroup) },
+                            onOpenGroup = { navigator.navigate(Destination.GroupDetail(it)) },
+                            modifier = Modifier.statusBarsPadding(),
                         )
                         Destination.Activity -> ActivityRoute(
                             viewModel = appViewModel {
