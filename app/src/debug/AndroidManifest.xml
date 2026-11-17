@@ -5,5 +5,9 @@
             android:name=".debug.Person5TestActivity"
             android:exported="true"
             android:label="Person 5 UI sandbox" />
+        <activity
+            android:name=".debug.Person2TestActivity"
+            android:exported="true"
+            android:label="App sandbox (no login)" />
     </application>
 </manifest>

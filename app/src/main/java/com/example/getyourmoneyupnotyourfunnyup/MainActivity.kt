@@ -23,6 +23,7 @@ import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.LoginScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.RegistrationScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.counter.CounterScreen
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.shell.MainShell
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 
 private sealed interface AppDestination {
@@ -194,28 +195,36 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 }
             }
 
-            CounterScreen(
-                modifier = modifier,
+            // Authenticated shell (Home · Groups · Scan · Activity · Profile). The existing
+            // profile/counter screen with logout lives in the Profile tab.
+            MainShell(
                 user = activeUser,
-                statusMessage = statusMessage,
-                onIncrementClick = {
-                    statusMessage = "Saving count to /users/${activeUser.id}..."
-                    authRepository.incrementUserCount(activeUser) { result ->
-                        result
-                            .onSuccess { savedCount ->
-                                statusMessage = "Saved count ($savedCount) to /users/${activeUser.id}"
+                modifier = modifier,
+                profileContent = { profileModifier ->
+                    CounterScreen(
+                        modifier = profileModifier,
+                        user = activeUser,
+                        statusMessage = statusMessage,
+                        onIncrementClick = {
+                            statusMessage = "Saving count to /users/${activeUser.id}..."
+                            authRepository.incrementUserCount(activeUser) { result ->
+                                result
+                                    .onSuccess { savedCount ->
+                                        statusMessage = "Saved count ($savedCount) to /users/${activeUser.id}"
+                                    }
+                                    .onFailure { err ->
+                                        statusMessage = "Offline / Failed: ${err.localizedMessage}"
+                                    }
                             }
-                            .onFailure { err ->
-                                statusMessage = "Offline / Failed: ${err.localizedMessage}"
-                            }
-                    }
-                },
-                onLogoutClick = {
-                    authRepository.signOut()
-                    password = ""
-                    errorMessage = null
-                    statusMessage = ""
-                    destination = AppDestination.Login
+                        },
+                        onLogoutClick = {
+                            authRepository.signOut()
+                            password = ""
+                            errorMessage = null
+                            statusMessage = ""
+                            destination = AppDestination.Login
+                        }
+                    )
                 }
             )
         }

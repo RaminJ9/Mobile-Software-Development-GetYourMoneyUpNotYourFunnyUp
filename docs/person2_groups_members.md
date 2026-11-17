@@ -36,6 +36,16 @@ GroupMembersViewModel(repo.observeMembers(groupId, memberBalancesFlow, dietaryFl
 - Members tab: embed `GroupMembersContent` under the group hub's segmented tabs, or use `GroupMembersRoute` standalone.
 - `repo.observeGroups()` also supplies the real `DashboardGroup` (colour, favourite, last activity, pending count) Person 5 asked for in Home.
 
+## App shell (wired in)
+
+After login `MainActivity` now shows `ui/screens/shell/MainShell.kt`: the 80dp bottom bar
+(Home · Groups · Scan · Activity · Profile) with Person 5's Home/Activity, Person 2's Groups,
+New group and the group hub (Members tab). The previous counter screen with logout is kept in
+the Profile tab; Scan and the group's Activity/Balances tabs are placeholders for their owners.
+Without `google-services.json` login can't run, so `debug/Person2TestActivity` shows the same
+shell on an in-memory database:
+`adb shell am start -n com.example.getyourmoneyupnotyourfunnyup/.debug.Person2TestActivity`.
+
 ## Open contracts
 
 - **Balances (Person 4):** `balancesFlow` = account's net per group, `memberBalancesFlow` = each member's net (øre). Until supplied they are `null`: money filters show no counts and *every* removal asks for confirmation (safe default).
