@@ -75,7 +75,7 @@ class LedgerGroupsSource(private val ledger: LedgerRepository) :
             }
             is MemberDraft.Invited -> {
                 val contact = normaliseContact(member.contactValue)
-                require(snapshot.invites.none { it.groupId == groupId && it.contact == contact }) {
+                require(snapshot.invites.none { it.groupId == groupId && normaliseContact(it.contact) == contact }) {
                     "${member.displayName} is already invited"
                 }
                 ledger.invite(groupId, contact)
