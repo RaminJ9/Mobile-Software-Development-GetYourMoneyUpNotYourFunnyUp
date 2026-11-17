@@ -10,9 +10,17 @@ data class UserEntity(
     val displayName: String,
     val photoUrl: String? = null,
     val count: Int = 0,
+    // Legacy aggregate retained for existing callers; individual preferences are authoritative.
     val notificationsEnabled: Boolean = true,
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val phoneNumber: String? = null,
+    val excludeAlcohol: Boolean = false,
+    val excludeMeat: Boolean = false,
+    val notificationSettings: NotificationSettings = NotificationSettings(
+        expenseAlerts = notificationsEnabled,
+        paymentReminders = notificationsEnabled
+    )
 ) {
     fun toDomain(): User = User(
         id = id,
@@ -20,12 +28,12 @@ data class UserEntity(
         displayName = displayName,
         photoUrl = photoUrl,
         count = count,
-        notificationSettings = NotificationSettings(
-            expenseAlerts = notificationsEnabled,
-            paymentReminders = notificationsEnabled
-        ),
+        notificationSettings = notificationSettings,
         syncStatus = syncStatus,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        phoneNumber = phoneNumber,
+        excludeAlcohol = excludeAlcohol,
+        excludeMeat = excludeMeat
     )
 
     companion object {
@@ -35,9 +43,15 @@ data class UserEntity(
             displayName = user.displayName,
             photoUrl = user.photoUrl,
             count = user.count,
-            notificationsEnabled = user.notificationSettings.expenseAlerts || user.notificationSettings.paymentReminders,
+            notificationsEnabled = user.notificationSettings.let {
+                it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates
+            },
             syncStatus = user.syncStatus,
-            updatedAt = user.updatedAt
+            updatedAt = user.updatedAt,
+            phoneNumber = user.phoneNumber,
+            excludeAlcohol = user.excludeAlcohol,
+            excludeMeat = user.excludeMeat,
+            notificationSettings = user.notificationSettings
         )
     }
 }

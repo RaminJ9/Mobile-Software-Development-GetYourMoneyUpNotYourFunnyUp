@@ -6,6 +6,7 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.UserDocumentMapper
 import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.User
@@ -165,6 +166,22 @@ class AuthRepository(
         fallbackName: String,
         onResult: (Result<User>) -> Unit
     ) {
+        ioScope.launch {
+            val pending = userDao.getUserById(uid)?.takeIf { it.syncStatus != SyncStatus.SYNCED }
+            if (pending != null) {
+                onResult(Result.success(pending.toDomain()))
+                return@launch
+            }
+            fetchRemoteUserDocument(uid, fallbackEmail, fallbackName, onResult)
+        }
+    }
+
+    private fun fetchRemoteUserDocument(
+        uid: String,
+        fallbackEmail: String,
+        fallbackName: String,
+        onResult: (Result<User>) -> Unit
+    ) {
         firestore.collection(USERS_COLLECTION)
             .document(uid)
             .get()
@@ -176,9 +193,9 @@ class AuthRepository(
                         fallbackName = fallbackName
                     )
                     ioScope.launch {
-                        userDao.upsertUser(UserEntity.fromDomain(user))
+                        val cached = userDao.cacheRemoteUser(UserEntity.fromDomain(user))
+                        onResult(Result.success(cached.toDomain()))
                     }
-                    onResult(Result.success(user))
                 } else {
                     // User exists in Firebase Auth but not yet in `/users/{uid}` — insert it now
                     val newUser = User(
@@ -252,7 +269,7 @@ class AuthRepository(
                         fallbackName = fallbackName
                     )
                     ioScope.launch {
-                        userDao.upsertUser(UserEntity.fromDomain(remoteUser))
+                        userDao.cacheRemoteUser(UserEntity.fromDomain(remoteUser))
                     }
                 }
             }
@@ -326,42 +343,13 @@ class AuthRepository(
         auth.signOut()
     }
 
-    private fun User.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "id" to id,
-        "email" to email,
-        "displayName" to displayName,
-        "photoUrl" to photoUrl,
-        "count" to count,
-        "notificationSettings" to mapOf(
-            "expenseAlerts" to notificationSettings.expenseAlerts,
-            "paymentReminders" to notificationSettings.paymentReminders
-        ),
-        "updatedAt" to updatedAt
-    )
+    private fun User.toFirestoreMap(): Map<String, Any?> = UserDocumentMapper.toMap(this)
 
     private fun DocumentSnapshot.toUserDomain(
         uid: String,
         fallbackEmail: String,
         fallbackName: String
-    ): User {
-        val notifMap = get("notificationSettings") as? Map<*, *>
-        val expenseAlerts = (notifMap?.get("expenseAlerts") as? Boolean) ?: true
-        val paymentReminders = (notifMap?.get("paymentReminders") as? Boolean) ?: true
-
-        return User(
-            id = getString("id") ?: uid,
-            email = getString("email") ?: fallbackEmail,
-            displayName = getString("displayName") ?: fallbackName,
-            photoUrl = getString("photoUrl"),
-            count = getLong("count")?.toInt() ?: 0,
-            notificationSettings = NotificationSettings(
-                expenseAlerts = expenseAlerts,
-                paymentReminders = paymentReminders
-            ),
-            syncStatus = SyncStatus.SYNCED,
-            updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
-        )
-    }
+    ): User = UserDocumentMapper.fromMap(data.orEmpty(), uid, fallbackEmail, fallbackName)
 
     companion object {
         const val USERS_COLLECTION = "users"
