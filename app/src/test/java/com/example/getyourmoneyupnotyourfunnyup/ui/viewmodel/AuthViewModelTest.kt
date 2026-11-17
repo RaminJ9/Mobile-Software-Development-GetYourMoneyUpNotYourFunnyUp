@@ -31,12 +31,13 @@ class AuthViewModelTest {
         val updates = MutableStateFlow(User("u", "user@example.com", "User", updatedAt = 1L))
         override fun restore(uid: String, email: String, onResult: (Result<User>) -> Unit) { result = onResult }
         override fun login(email: String, password: String, onResult: (Result<User>) -> Unit) { loginCalls++; result = onResult }
-        override fun register(name: String, email: String, password: String, onResult: (Result<User>) -> Unit) { registerCalls++; result = onResult }
+        override fun register(name: String, email: String, password: String, phoneNumber: String?, onResult: (Result<User>) -> Unit) { registerCalls++; result = onResult }
         var listenerError: ((String) -> Unit)? = null
         override fun observeUser(user: User, onError: (String) -> Unit): Flow<User> {
             listenerError = onError
             return updates
         }
+        override fun resetPassword(email: String, onResult: (Result<Unit>) -> Unit) { onResult(Result.success(Unit)) }
         override fun signOut() { signedOut = true }
     }
     private fun AuthViewModel.signedOut() = state.value as AuthUiState.SignedOut

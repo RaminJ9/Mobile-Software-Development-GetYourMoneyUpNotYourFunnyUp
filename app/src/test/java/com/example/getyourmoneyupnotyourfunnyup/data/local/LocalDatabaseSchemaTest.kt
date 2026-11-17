@@ -60,16 +60,15 @@ class LocalDatabaseSchemaTest {
             count = 7,
             excludeAlcohol = true,
             excludeMeat = false,
-            notifyNewExpenses = true,
-            notifyChangedExpenses = false,
-            notifyPaymentReminders = true,
-            notifySyncUpdates = false,
+            notificationSettings = com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings(
+                expenseAlerts = true, changedExpenseAlerts = false, paymentReminders = true, syncUpdates = false
+            ),
             syncStatus = SyncStatus.PENDING_INSERT
         )
         val userDomain = userEntity.toDomain()
         assertEquals(7, userDomain.count)
         assertEquals("+45 12 34 56 78", userDomain.phoneNumber)
-        assertTrue(userDomain.dietaryRules.excludeAlcohol)
+        assertTrue(userDomain.excludeAlcohol)
         assertEquals(SyncStatus.PENDING_INSERT, userDomain.syncStatus)
         assertEquals(userEntity, UserEntity.fromDomain(userDomain))
 

@@ -220,7 +220,7 @@ class UserDao(private val database: AppDatabase) {
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationSettings.let {
             it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates
         }) 1 else 0)
-        put(UsersTable.COL_PHONE_NUMBER, phoneNumber)
+        put(UsersTable.COL_PHONE_NUMBER, phoneNumber.orEmpty())
         put(UsersTable.COL_EXCLUDE_ALCOHOL, if (excludeAlcohol) 1 else 0)
         put(UsersTable.COL_EXCLUDE_MEAT, if (excludeMeat) 1 else 0)
         put(UsersTable.COL_NOTIFY_NEW_EXPENSES, if (notificationSettings.expenseAlerts) 1 else 0)
@@ -244,7 +244,7 @@ class UserDao(private val database: AppDatabase) {
             notificationsEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0,
             syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(UsersTable.COL_SYNC_STATUS))),
             updatedAt = getLong(getColumnIndexOrThrow(UsersTable.COL_UPDATED_AT)),
-            phoneNumber = if (isNull(phoneIdx)) null else getString(phoneIdx),
+            phoneNumber = if (isNull(phoneIdx)) null else getString(phoneIdx).takeIf { it.isNotBlank() },
             excludeAlcohol = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_ALCOHOL)) != 0,
             excludeMeat = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_MEAT)) != 0,
             notificationSettings = NotificationSettings(

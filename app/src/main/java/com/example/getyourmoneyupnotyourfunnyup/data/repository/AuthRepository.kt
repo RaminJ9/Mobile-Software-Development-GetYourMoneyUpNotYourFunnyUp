@@ -54,7 +54,8 @@ class AuthRepository(
         displayName: String,
         email: String,
         password: String,
-        onResult: (Result<User>) -> Unit
+        onResult: (Result<User>) -> Unit,
+        phoneNumber: String? = null
     ) {
         val trimmedName = displayName.trim().ifEmpty { email.trim().substringBefore("@") }
         val trimmedEmail = email.trim()
@@ -79,6 +80,7 @@ class AuthRepository(
                     id = uid,
                     email = trimmedEmail,
                     displayName = trimmedName,
+                    phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotBlank() },
                     photoUrl = null,
                     count = 0,
                     notificationSettings = NotificationSettings(),
@@ -111,7 +113,7 @@ class AuthRepository(
                                     entityType = SyncEntityType.USER,
                                     entityId = uid,
                                     action = SyncAction.CREATE,
-                                    payloadJson = """{"id":"$uid","email":"$trimmedEmail","displayName":"$trimmedName","count":0}""",
+                                    payloadJson = org.json.JSONObject(newUser.toFirestoreMap()).toString(),
                                     errorMessage = error.localizedMessage
                                 )
                             )
@@ -337,6 +339,17 @@ class AuthRepository(
                 }
                 onResult(Result.failure(error))
             }
+    }
+
+    /** Preserves the incoming Forgot password control using Firebase's email reset flow. */
+    fun sendPasswordResetEmail(email: String, onResult: (Result<Unit>) -> Unit) {
+        if (email.isBlank()) {
+            onResult(Result.failure(IllegalArgumentException("Enter your email address first.")))
+            return
+        }
+        auth.sendPasswordResetEmail(email.trim())
+            .addOnSuccessListener { onResult(Result.success(Unit)) }
+            .addOnFailureListener { onResult(Result.failure(it)) }
     }
 
     fun signOut() {

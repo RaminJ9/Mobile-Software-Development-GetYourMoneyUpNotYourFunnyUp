@@ -10,7 +10,7 @@ internal fun sampleHome(): HomeData {
         email = "victor@example.dk",
         displayName = "Victor Munk",
         phoneNumber = "+45 12 34 56 78",
-        dietaryRules = DietaryRules(excludeAlcohol = true, excludeMeat = false)
+        excludeAlcohol = true, excludeMeat = false
     )
     val groups = listOf("Ski trip Åre", "Friday Bar crew", "Padel Tuesdays", "Kollegiet 4. sal")
         .mapIndexed { index, name ->

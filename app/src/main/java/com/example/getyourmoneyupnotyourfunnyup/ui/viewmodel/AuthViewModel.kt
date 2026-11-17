@@ -16,7 +16,8 @@ data class AuthFields(
     val form: AuthForm = AuthForm.Login,
     val displayName: String = "",
     val email: String = "",
-    val password: String = ""
+    val password: String = "",
+    val phoneNumber: String = ""
 )
 
 sealed interface AuthUiState {
@@ -24,7 +25,8 @@ sealed interface AuthUiState {
     data class SignedOut(
         val fields: AuthFields = AuthFields(),
         val isLoading: Boolean = false,
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        val infoMessage: String? = null
     ) : AuthUiState
     data class SignedIn(val user: User, val statusMessage: String = "") : AuthUiState
 }
@@ -49,6 +51,7 @@ class AuthViewModel(private val source: AuthSessionSource) : ViewModel() {
     }
 
     fun setEmail(value: String) = edit { copy(email = value) }
+    fun setPhoneNumber(value: String) = edit { copy(phoneNumber = value) }
     fun setPassword(value: String) = edit { copy(password = value) }
     fun setDisplayName(value: String) = edit { copy(displayName = value) }
     fun showRegister() = edit { copy(form = AuthForm.Register, password = "") }
@@ -56,7 +59,7 @@ class AuthViewModel(private val source: AuthSessionSource) : ViewModel() {
 
     private fun edit(transform: AuthFields.() -> AuthFields) {
         val current = state.value as? AuthUiState.SignedOut ?: return
-        if (!current.isLoading) mutableState.value = current.copy(fields = current.fields.transform(), errorMessage = null)
+        if (!current.isLoading) mutableState.value = current.copy(fields = current.fields.transform(), errorMessage = null, infoMessage = null)
     }
 
     fun submit() {
@@ -69,15 +72,37 @@ class AuthViewModel(private val source: AuthSessionSource) : ViewModel() {
             mutableState.value = current.copy(errorMessage = "Enter the required account details.")
             return
         }
-        mutableState.value = current.copy(isLoading = true, errorMessage = null)
+        mutableState.value = current.copy(isLoading = true, errorMessage = null, infoMessage = null)
         val request = ++generation
         if (fields.form == AuthForm.Register) {
-            source.register(fields.displayName, fields.email, fields.password) {
+            source.register(fields.displayName, fields.email, fields.password, fields.phoneNumber.trim().ifEmpty { null }) {
                 finishAuthentication(request, it, fields, "Created user")
             }
         } else {
             source.login(fields.email, fields.password) {
                 finishAuthentication(request, it, fields, "Fetched user")
+            }
+        }
+    }
+
+    fun forgotPassword() {
+        val current = state.value as? AuthUiState.SignedOut ?: return
+        if (current.isLoading) return
+        val email = current.fields.email.trim()
+        if (email.isBlank()) {
+            mutableState.value = current.copy(errorMessage = "Enter your email address first.", infoMessage = null)
+            return
+        }
+        val request = ++generation
+        mutableState.value = current.copy(isLoading = true, errorMessage = null, infoMessage = null)
+        source.resetPassword(email) { result ->
+            viewModelScope.launch {
+                if (request != generation) return@launch
+                mutableState.value = current.copy(
+                    isLoading = false,
+                    infoMessage = if (result.isSuccess) "If an account exists for $email, a password reset link will be sent." else null,
+                    errorMessage = result.exceptionOrNull()?.localizedMessage
+                )
             }
         }
     }

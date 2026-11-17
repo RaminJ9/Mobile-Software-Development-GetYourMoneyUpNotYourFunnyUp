@@ -1,197 +1,70 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.profile
 
-import com.example.getyourmoneyupnotyourfunnyup.model.DietaryRules
-import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
-import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
-import com.example.getyourmoneyupnotyourfunnyup.model.User
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileActions
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileUiState
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileViewModel
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.ProfileRepository
+import com.example.getyourmoneyupnotyourfunnyup.model.*
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.*
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+/** Incoming profile scenarios adapted to the retained local-first save contract. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
+    private val user = User("u", "victor@example.dk", "Victor Munk", updatedAt = 1L, phoneNumber = "+45 12 34 56 78")
+    @Before fun setUp() = Dispatchers.setMain(dispatcher)
+    @After fun tearDown() = Dispatchers.resetMain()
 
-    private val sampleUser = User(
-        id = "usr-victor",
-        email = "victor@example.dk",
-        displayName = "Victor Munk",
-        phoneNumber = "+45 12 34 56 78",
-        dietaryRules = DietaryRules(excludeAlcohol = false, excludeMeat = false),
-        notificationSettings = NotificationSettings(
-            newExpenses = true,
-            changedExpenses = true,
-            paymentReminders = true,
-            syncUpdates = true
-        )
-    )
-
-    @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
+    @Test fun editAndSaveUpdatesNameAndPhoneWithoutChangingLoginEmail() = runTest(dispatcher) {
+        val repo = FakeRepository(user); val vm = ProfileViewModel(user, repo); advanceUntilIdle()
+        vm.edit(); vm.setName("Victor M. Munk"); vm.setPhone("+45 87 65 43 21"); vm.saveDetails(); advanceUntilIdle()
+        assertNull(vm.state.value.draft)
+        assertEquals("Victor M. Munk", vm.state.value.user.displayName)
+        assertEquals("+45 87 65 43 21", vm.state.value.user.phoneNumber)
+        assertEquals(user.email, vm.state.value.user.email)
+        assertTrue(vm.state.value.saved)
     }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
+    @Test fun cancelEditDiscardsDraftWithoutSaving() = runTest(dispatcher) {
+        val repo = FakeRepository(user); val vm = ProfileViewModel(user, repo); advanceUntilIdle()
+        vm.edit(); vm.setName("Temporary"); vm.cancel()
+        assertNull(vm.state.value.draft)
+        assertEquals(user, vm.state.value.user)
+        assertEquals(0, repo.saves)
     }
-
-    @Test
-    fun editAndSaveProfile_updatesNameEmailPhoneAndShowsSavedToast() = runTest(dispatcher) {
-        val userFlow = MutableStateFlow<User?>(sampleUser)
-        val actions = FakeProfileActions(userFlow)
-        val viewModel = ProfileViewModel(
-            userFlow = userFlow,
-            actions = actions,
-            initialUser = sampleUser,
-            toastDurationMillis = 1600L
-        )
-        advanceUntilIdle()
-
-        viewModel.startEdit()
-        assertTrue((viewModel.state.value as ProfileUiState.Success).isEditing)
-
-        viewModel.onDraftNameChange("Victor M. Munk")
-        viewModel.onDraftEmailChange("victor.munk@example.dk")
-        viewModel.onDraftPhoneChange("+45 87 65 43 21")
-        viewModel.saveEdit()
-
-        val savedState = viewModel.state.value as ProfileUiState.Success
-        assertFalse(savedState.isEditing)
-        assertEquals("Victor M. Munk", savedState.user.displayName)
-        assertEquals("victor.munk@example.dk", savedState.user.email)
-        assertEquals("+45 87 65 43 21", savedState.user.phoneNumber)
-        assertTrue(savedState.showSavedToast)
-
-        // After 1600ms, the floating "Saved" pill hides automatically
-        advanceTimeBy(1700L)
-        assertFalse((viewModel.state.value as ProfileUiState.Success).showSavedToast)
+    @Test fun dietaryAndNotificationChoicesPersistIndependently() = runTest(dispatcher) {
+        val vm = ProfileViewModel(user, FakeRepository(user)); advanceUntilIdle()
+        for (preference in ProfilePreference.entries) {
+            vm.toggle(preference, preference == ProfilePreference.Alcohol || preference == ProfilePreference.Meat)
+            advanceUntilIdle()
+        }
+        assertTrue(vm.state.value.user.excludeAlcohol)
+        assertTrue(vm.state.value.user.excludeMeat)
+        assertEquals(NotificationSettings(false, false, false, false), vm.state.value.user.notificationSettings)
     }
-
-    @Test
-    fun cancelEdit_discardsDraftAndRestoresOriginalUserValues() = runTest(dispatcher) {
-        val userFlow = MutableStateFlow<User?>(sampleUser)
-        val viewModel = ProfileViewModel(userFlow = userFlow, initialUser = sampleUser)
-        advanceUntilIdle()
-
-        viewModel.startEdit()
-        viewModel.onDraftNameChange("Temporary Name")
-        viewModel.cancelEdit()
-
-        val state = viewModel.state.value as ProfileUiState.Success
-        assertFalse(state.isEditing)
-        assertEquals("Victor Munk", state.draftName)
-        assertEquals("Victor Munk", state.user.displayName)
-    }
-
-    @Test
-    fun toggleDietaryAndNotificationPreferences_persistsAllSixSwitches() = runTest(dispatcher) {
-        val userFlow = MutableStateFlow<User?>(sampleUser)
-        val actions = FakeProfileActions(userFlow)
-        val viewModel = ProfileViewModel(
-            userFlow = userFlow,
-            actions = actions,
-            initialUser = sampleUser,
-            toastDurationMillis = 0L
-        )
-        advanceUntilIdle()
-
-        // Toggle "Never charge me for" rules (Alcohol & Meat)
-        viewModel.toggleExcludeAlcohol()
-        viewModel.toggleExcludeMeat()
-        advanceUntilIdle()
-
-        var state = viewModel.state.value as ProfileUiState.Success
-        assertTrue(state.user.dietaryRules.excludeAlcohol)
-        assertTrue(state.user.dietaryRules.excludeMeat)
-
-        // Toggle "Notify me about" switches (New expenses, Changed expenses, Payment reminders, Sync updates)
-        viewModel.toggleNewExpenses()
-        viewModel.toggleChangedExpenses()
-        viewModel.togglePaymentReminders()
-        viewModel.toggleSyncUpdates()
-        advanceUntilIdle()
-
-        state = viewModel.state.value as ProfileUiState.Success
-        assertFalse(state.user.notificationSettings.newExpenses)
-        assertFalse(state.user.notificationSettings.changedExpenses)
-        assertFalse(state.user.notificationSettings.paymentReminders)
-        assertFalse(state.user.notificationSettings.syncUpdates)
-        assertFalse(state.user.notificationSettings.expenseAlerts)
-    }
-
-    @Test
-    fun offlineProfileSave_preservesLocalChangesAndExposesFailedSyncStatus() = runTest(dispatcher) {
-        val userFlow = MutableStateFlow<User?>(sampleUser)
-        val actions = FakeProfileActions(userFlow, simulateOffline = true)
-        val viewModel = ProfileViewModel(
-            userFlow = userFlow,
-            actions = actions,
-            initialUser = sampleUser,
-            toastDurationMillis = 0L
-        )
-        advanceUntilIdle()
-
-        viewModel.startEdit()
-        viewModel.onDraftPhoneChange("+45 99 88 77 66")
-        viewModel.saveEdit()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value as ProfileUiState.Success
-        assertEquals("+45 99 88 77 66", state.user.phoneNumber)
-        assertEquals(SyncStatus.FAILED, state.user.syncStatus)
+    @Test fun offlineSaveKeepsLocalProfileAndShowsUnsyncedStatus() = runTest(dispatcher) {
+        val vm = ProfileViewModel(user, FakeRepository(user, offline = true)); advanceUntilIdle()
+        vm.edit(); vm.setPhone("+45 99 88 77 66"); vm.saveDetails(); advanceUntilIdle()
+        assertEquals("+45 99 88 77 66", vm.state.value.user.phoneNumber)
+        assertEquals(SyncStatus.FAILED, vm.state.value.user.syncStatus)
     }
 }
 
-private class FakeProfileActions(
-    private val userFlow: MutableStateFlow<User?>,
-    private val simulateOffline: Boolean = false
-) : ProfileActions {
-    override suspend fun updateProfile(
-        user: User,
-        fullName: String,
-        email: String,
-        phoneNumber: String
-    ): Result<User> {
-        val updated = user.copy(
-            displayName = fullName,
-            email = email,
-            phoneNumber = phoneNumber,
-            syncStatus = if (simulateOffline) SyncStatus.FAILED else SyncStatus.SYNCED
-        )
-        userFlow.value = updated
-        return Result.success(updated)
+private class FakeRepository(initial: User, private val offline: Boolean = false) : ProfileRepository {
+    private val users = MutableStateFlow<User?>(initial)
+    var saves = 0
+    override fun observeProfile(userId: String) = users
+    override suspend fun save(userId: String, changes: ProfileChanges): User {
+        saves++
+        val current = users.value!!
+        return current.copy(displayName = changes.displayName, phoneNumber = changes.phoneNumber,
+            excludeAlcohol = changes.excludeAlcohol, excludeMeat = changes.excludeMeat,
+            notificationSettings = changes.notificationSettings,
+            updatedAt = current.updatedAt + 1, syncStatus = if (offline) SyncStatus.FAILED else SyncStatus.SYNCED
+        ).also { users.value = it }
     }
-
-    override suspend fun updatePreferences(
-        user: User,
-        dietaryRules: DietaryRules,
-        notificationSettings: NotificationSettings
-    ): Result<User> {
-        val updated = user.copy(
-            dietaryRules = dietaryRules,
-            notificationSettings = notificationSettings,
-            syncStatus = if (simulateOffline) SyncStatus.FAILED else SyncStatus.SYNCED
-        )
-        userFlow.value = updated
-        return Result.success(updated)
-    }
-
-    override suspend fun sendPasswordReset(email: String): Result<Unit> = Result.success(Unit)
 }

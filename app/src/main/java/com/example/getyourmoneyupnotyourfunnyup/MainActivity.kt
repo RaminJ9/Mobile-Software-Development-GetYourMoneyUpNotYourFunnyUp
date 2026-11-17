@@ -75,7 +75,9 @@ fun AppRoot(modifier: Modifier = Modifier) {
                     onEmailChange = authViewModel::setEmail,
                     onPasswordChange = authViewModel::setPassword,
                     onLoginClick = authViewModel::submit,
-                    onNavigateToRegister = authViewModel::showRegister
+                    onNavigateToRegister = authViewModel::showRegister,
+                    infoMessage = current.infoMessage,
+                    onForgotPasswordClick = authViewModel::forgotPassword
                 )
             } else {
                 RegistrationScreen(
@@ -89,7 +91,9 @@ fun AppRoot(modifier: Modifier = Modifier) {
                     onEmailChange = authViewModel::setEmail,
                     onPasswordChange = authViewModel::setPassword,
                     onRegisterClick = authViewModel::submit,
-                    onNavigateToLogin = authViewModel::showLogin
+                    onNavigateToLogin = authViewModel::showLogin,
+                    phoneNumber = fields.phoneNumber,
+                    onPhoneNumberChange = authViewModel::setPhoneNumber
                 )
             }
         }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModelProvider
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
@@ -26,7 +27,6 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.map
 
 class Person5TestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,14 +42,15 @@ class Person5TestActivity : ComponentActivity() {
         })[ActivityViewModel::class.java]
         val profile = ViewModelProvider(this, factory {
             ProfileViewModel(
-                userFlow = session.home.map { it.user },
-                initialUser = session.home.value.user
+                initialUser = session.home.value.user,
+                repository = null
             )
         })[ProfileViewModel::class.java]
         val destination: (String) -> Unit = { name ->
             Toast.makeText(this, "Sample navigation: $name (not connected)", Toast.LENGTH_SHORT).show()
         }
         setContent {
+            val homeData by session.home.collectAsStateWithLifecycle()
             GetYourMoneyUpNotYourFunnyUpTheme {
                 Surface(color = AppColors.White, contentColor = AppColors.Ink900) {
                     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -81,7 +82,7 @@ class Person5TestActivity : ComponentActivity() {
                                         }
                                     }
                                     TextButton(onClick = { session.toggleOffline() }) {
-                                        Text(if (session.home.value.offlineSavedAt == null) "Show offline" else "Hide offline")
+                                        Text(if (homeData.offlineSavedAt == null) "Show offline" else "Hide offline")
                                     }
                                 }
                             }

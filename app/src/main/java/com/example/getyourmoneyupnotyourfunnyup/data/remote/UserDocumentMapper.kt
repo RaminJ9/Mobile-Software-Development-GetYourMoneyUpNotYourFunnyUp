@@ -16,8 +16,11 @@ internal object UserDocumentMapper {
             "phoneNumber" to phoneNumber,
             "excludeAlcohol" to excludeAlcohol,
             "excludeMeat" to excludeMeat,
+            "dietaryRules" to mapOf("excludeAlcohol" to excludeAlcohol, "excludeMeat" to excludeMeat),
             "notificationSettings" to mapOf(
                 "expenseAlerts" to notificationSettings.expenseAlerts,
+                "newExpenses" to notificationSettings.expenseAlerts,
+                "changedExpenses" to notificationSettings.changedExpenseAlerts,
                 "paymentReminders" to notificationSettings.paymentReminders,
                 "changedExpenseAlerts" to notificationSettings.changedExpenseAlerts,
                 "syncUpdates" to notificationSettings.syncUpdates
@@ -28,7 +31,7 @@ internal object UserDocumentMapper {
 
     /** Patch only profile fields, so an upload cannot replace login email or financial data. */
     fun profileUpdateMap(user: User): Map<String, Any?> = toMap(user).filterKeys {
-        it in setOf("id", "displayName", "phoneNumber", "excludeAlcohol", "excludeMeat", "notificationSettings", "updatedAt")
+        it in setOf("id", "displayName", "phoneNumber", "excludeAlcohol", "excludeMeat", "dietaryRules", "notificationSettings", "updatedAt")
     }
 
     fun fromMap(
@@ -39,7 +42,9 @@ internal object UserDocumentMapper {
         nowMillis: Long = System.currentTimeMillis()
     ): User {
         val settings = data["notificationSettings"] as? Map<*, *>
-        val newExpenses = settings?.get("expenseAlerts") as? Boolean ?: true
+        val legacyExpenses = settings?.get("expenseAlerts") as? Boolean ?: true
+        val newExpenses = settings?.get("newExpenses") as? Boolean ?: legacyExpenses
+        val dietary = data["dietaryRules"] as? Map<*, *>
         val reminders = settings?.get("paymentReminders") as? Boolean ?: true
         return User(
             id = data["id"] as? String ?: uid,
@@ -51,14 +56,14 @@ internal object UserDocumentMapper {
                 expenseAlerts = newExpenses,
                 paymentReminders = reminders,
                 // Older documents had just the two original preferences. Preserve their choices.
-                changedExpenseAlerts = settings?.get("changedExpenseAlerts") as? Boolean ?: newExpenses,
+                changedExpenseAlerts = settings?.get("changedExpenseAlerts") as? Boolean ?: (settings?.get("changedExpenses") as? Boolean ?: legacyExpenses),
                 syncUpdates = settings?.get("syncUpdates") as? Boolean ?: (newExpenses || reminders)
             ),
             syncStatus = SyncStatus.SYNCED,
             updatedAt = (data["updatedAt"] as? Number)?.toLong() ?: nowMillis,
-            phoneNumber = data["phoneNumber"] as? String,
-            excludeAlcohol = data["excludeAlcohol"] as? Boolean ?: false,
-            excludeMeat = data["excludeMeat"] as? Boolean ?: false
+            phoneNumber = (data["phoneNumber"] as? String)?.takeIf { it.isNotBlank() },
+            excludeAlcohol = data["excludeAlcohol"] as? Boolean ?: (dietary?.get("excludeAlcohol") as? Boolean ?: false),
+            excludeMeat = data["excludeMeat"] as? Boolean ?: (dietary?.get("excludeMeat") as? Boolean ?: false)
         )
     }
 }

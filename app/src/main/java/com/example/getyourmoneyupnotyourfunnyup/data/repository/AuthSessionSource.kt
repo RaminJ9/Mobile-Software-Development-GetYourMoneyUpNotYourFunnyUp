@@ -12,8 +12,9 @@ interface AuthSessionSource {
     val currentEmail: String?
     fun restore(uid: String, email: String, onResult: (Result<User>) -> Unit)
     fun login(email: String, password: String, onResult: (Result<User>) -> Unit)
-    fun register(name: String, email: String, password: String, onResult: (Result<User>) -> Unit)
+    fun register(name: String, email: String, password: String, phoneNumber: String?, onResult: (Result<User>) -> Unit)
     fun observeUser(user: User, onError: (String) -> Unit): Flow<User>
+    fun resetPassword(email: String, onResult: (Result<Unit>) -> Unit)
     fun signOut()
 }
 
@@ -27,8 +28,8 @@ class RepositoryAuthSessionSource(private val repository: AuthRepository) : Auth
     override fun login(email: String, password: String, onResult: (Result<User>) -> Unit) =
         repository.loginUser(email, password, onResult)
 
-    override fun register(name: String, email: String, password: String, onResult: (Result<User>) -> Unit) =
-        repository.registerUser(name, email, password, onResult)
+    override fun register(name: String, email: String, password: String, phoneNumber: String?, onResult: (Result<User>) -> Unit) =
+        repository.registerUser(name, email, password, onResult, phoneNumber)
 
     override fun observeUser(user: User, onError: (String) -> Unit): Flow<User> = callbackFlow {
         val local = launch {
@@ -44,6 +45,9 @@ class RepositoryAuthSessionSource(private val repository: AuthRepository) : Auth
             local.cancel()
         }
     }
+
+    override fun resetPassword(email: String, onResult: (Result<Unit>) -> Unit) =
+        repository.sendPasswordResetEmail(email, onResult)
 
     override fun signOut() = repository.signOut()
 }

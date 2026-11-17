@@ -125,6 +125,26 @@ class ProfileDbTest {
         assertLedgerPreserved(db)
     }
 
+
+    @Test fun incomingVersion3NotNullPhoneAcceptsMissingAndClearedNumbers() {
+        val path = context.getDatabasePath(databaseName)
+        path.parentFile?.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(path, null).use { existing ->
+            DatabaseContract.ALL_CREATE_STATEMENTS.forEach { statement ->
+                existing.execSQL(statement.replace("phone_number TEXT,", "phone_number TEXT NOT NULL DEFAULT '',").trimIndent())
+            }
+            existing.version = 3
+        }
+        val db = open()
+        val initial = UserEntity("u", "u@test", "Existing", phoneNumber = null)
+        db.userDao.upsertUser(initial)
+        assertNull(db.userDao.getUserById("u")!!.phoneNumber)
+        db.userDao.upsertUser(initial.copy(phoneNumber = "+4512345678"))
+        db.userDao.saveProfileAndEnqueue("u", com.example.getyourmoneyupnotyourfunnyup.model.ProfileChanges.fromUser(initial.toDomain()))
+        assertNull(db.userDao.getUserById("u")!!.phoneNumber)
+        assertEquals(1, db.syncQueueDao.getAllPending().size)
+    }
+
     private fun insertLedger(db: SQLiteDatabase) {
         db.execSQL("INSERT INTO \"groups\" (id,name,created_by,created_at,updated_at) VALUES ('g','Existing group','u',1,1)")
         db.execSQL("INSERT INTO group_members (group_id,user_id,role,joined_at) VALUES ('g','u','ADMIN',1),('g','v','MEMBER',1)")

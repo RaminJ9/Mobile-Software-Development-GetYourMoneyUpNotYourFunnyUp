@@ -71,4 +71,20 @@ class UserProfileMappingTest {
         val enabled = UserEntity("u", "email", "Name", notificationsEnabled = true).toDomain()
         assertEquals(NotificationSettings(true, true, true, true), enabled.notificationSettings)
     }
+    @Test fun incomingTeamDocumentKeepsDietAndIndependentNotificationChoices() {
+        val document = mapOf<String, Any?>(
+            "phoneNumber" to "",
+            "dietaryRules" to mapOf("excludeAlcohol" to true, "excludeMeat" to true),
+            "notificationSettings" to mapOf("expenseAlerts" to true, "newExpenses" to false, "changedExpenses" to true, "paymentReminders" to false, "syncUpdates" to false)
+        )
+        val loaded = UserDocumentMapper.fromMap(document, "u", "email", "Name")
+        assertTrue(loaded.excludeAlcohol)
+        assertTrue(loaded.excludeMeat)
+        assertNull(loaded.phoneNumber)
+        assertEquals(NotificationSettings(false, false, true, false), loaded.notificationSettings)
+        val written = UserDocumentMapper.toMap(loaded)
+        assertEquals(document["dietaryRules"], written["dietaryRules"])
+        assertEquals(false, (written["notificationSettings"] as Map<*, *>)["newExpenses"])
+    }
+
 }

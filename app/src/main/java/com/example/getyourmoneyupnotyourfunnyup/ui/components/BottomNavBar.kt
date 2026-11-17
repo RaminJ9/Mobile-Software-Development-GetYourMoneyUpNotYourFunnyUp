@@ -155,7 +155,7 @@ private fun StandardNavTabItem(
             )
             .semantics {
                 selected = isSelected
-                contentDescription = tab.label
+                contentDescription = "${tab.label} tab"
             }
             .padding(top = AppSpacing.Space8),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -204,7 +204,7 @@ private fun ScanNavTabItem(
             )
             .semantics {
                 selected = isSelected
-                contentDescription = "Scan receipt"
+                contentDescription = "Scan tab"
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Space4)

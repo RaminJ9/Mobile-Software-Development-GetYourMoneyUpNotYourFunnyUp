@@ -1,208 +1,80 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.auth
 
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthSessionSource
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.User
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthGateway
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthMode
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthViewModel
-import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SessionState
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.*
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+/** Incoming auth scenarios adapted to the single retained session/source contract. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
+    @Before fun setUp() = Dispatchers.setMain(dispatcher)
+    @After fun tearDown() = Dispatchers.resetMain()
 
-    @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
+    @Test fun loginSuccessCreatesAuthenticatedSession() = runTest(dispatcher) {
+        val source = FakeSource(); val vm = AuthViewModel(source)
+        vm.setEmail("victor@example.dk"); vm.setPassword("password"); vm.submit(); advanceUntilIdle()
+        assertEquals("victor@example.dk", (vm.state.value as AuthUiState.SignedIn).user.email)
     }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
+    @Test fun registrationPreservesPhoneNumber() = runTest(dispatcher) {
+        val vm = AuthViewModel(FakeSource())
+        vm.showRegister(); vm.setDisplayName("Victor Munk"); vm.setEmail("victor@example.dk")
+        vm.setPhoneNumber("+45 12 34 56 78"); vm.setPassword("password"); vm.submit(); advanceUntilIdle()
+        val user = (vm.state.value as AuthUiState.SignedIn).user
+        assertEquals("Victor Munk", user.displayName)
+        assertEquals("+45 12 34 56 78", user.phoneNumber)
     }
-
-    @Test
-    fun loginSuccess_redirectsUserToHomeTab() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway()
-        val viewModel = AuthViewModel(gateway)
-
-        viewModel.onEmailChange("victor@example.dk")
-        viewModel.onPasswordChange("sommerferie26")
-        viewModel.login()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue(state.session is SessionState.Authenticated)
-        val authSession = state.session as SessionState.Authenticated
-        assertEquals(AppTab.Home, authSession.selectedTab)
-        assertEquals("victor@example.dk", authSession.user.email)
-        assertEquals("", state.password)
+    @Test fun existingSessionRestoresUser() = runTest(dispatcher) {
+        val vm = AuthViewModel(FakeSource(currentUid = "existing")); advanceUntilIdle()
+        assertEquals("existing", (vm.state.value as AuthUiState.SignedIn).user.id)
     }
-
-    @Test
-    fun registerSuccess_createsProfileWithPhoneAndRedirectsToHomeTab() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway()
-        val viewModel = AuthViewModel(gateway)
-
-        viewModel.switchToRegister()
-        assertEquals(AuthMode.Register, viewModel.state.value.mode)
-
-        viewModel.onDisplayNameChange("Victor Munk")
-        viewModel.onEmailChange("victor@example.dk")
-        viewModel.onPhoneNumberChange("+45 12 34 56 78")
-        viewModel.onPasswordChange("sommerferie26")
-        viewModel.register()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue(state.session is SessionState.Authenticated)
-        val authSession = state.session as SessionState.Authenticated
-        assertEquals(AppTab.Home, authSession.selectedTab)
-        assertEquals("Victor Munk", authSession.user.displayName)
-        assertEquals("+45 12 34 56 78", authSession.user.phoneNumber)
+    @Test fun logoutReturnsToLoginAndClearsCredentials() = runTest(dispatcher) {
+        val source = FakeSource(); val vm = AuthViewModel(source)
+        vm.setEmail("victor@example.dk"); vm.setPassword("password"); vm.submit(); advanceUntilIdle()
+        vm.logout()
+        assertTrue(source.signedOut)
+        assertEquals(AuthUiState.SignedOut(), vm.state.value)
     }
-
-    @Test
-    fun existingSessionOnLaunch_restoresUserAndRedirectsToHomeTab() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway(
-            currentAuthUid = "uid-existing",
-            currentAuthEmail = "victor@example.dk"
-        )
-        val viewModel = AuthViewModel(gateway)
-        advanceUntilIdle()
-
-        val session = viewModel.state.value.session
-        assertTrue(session is SessionState.Authenticated)
-        assertEquals(AppTab.Home, (session as SessionState.Authenticated).selectedTab)
-        assertEquals("uid-existing", session.user.id)
+    @Test fun registrationWithUnsyncedProfileStillEntersAuthenticatedSession() = runTest(dispatcher) {
+        val vm = AuthViewModel(FakeSource(offline = true))
+        vm.showRegister(); vm.setDisplayName("Victor"); vm.setEmail("victor@example.dk"); vm.setPassword("password")
+        vm.submit(); advanceUntilIdle()
+        assertEquals(SyncStatus.FAILED, (vm.state.value as AuthUiState.SignedIn).user.syncStatus)
     }
-
-    @Test
-    fun selectTabAndLogout_switchesTabsAndReturnsToLoginScreenOnLogout() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway()
-        val viewModel = AuthViewModel(gateway)
-
-        viewModel.onEmailChange("victor@example.dk")
-        viewModel.onPasswordChange("sommerferie26")
-        viewModel.login()
-        advanceUntilIdle()
-
-        // Navigate across the 5 bottom navigation tabs
-        for (tab in AppTab.entries) {
-            viewModel.selectTab(tab)
-            val session = viewModel.state.value.session as SessionState.Authenticated
-            assertEquals(tab, session.selectedTab)
-        }
-
-        // Logout terminates session and returns to S1 Login
-        viewModel.logout()
-        assertTrue(gateway.signedOut)
-        assertEquals(SessionState.Unauthenticated, viewModel.state.value.session)
-        assertEquals(AuthMode.Login, viewModel.state.value.mode)
-        assertNull(viewModel.state.value.errorMessage)
-    }
-
-    @Test
-    fun offlineRegistrationFallback_stillRedirectsUserToHomeWithoutBlocking() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway(simulateOfflineSyncFailure = true)
-        val viewModel = AuthViewModel(gateway)
-
-        viewModel.switchToRegister()
-        viewModel.onDisplayNameChange("Victor Munk")
-        viewModel.onEmailChange("victor@example.dk")
-        viewModel.onPhoneNumberChange("+45 12 34 56 78")
-        viewModel.onPasswordChange("sommerferie26")
-        viewModel.register()
-        advanceUntilIdle()
-
-        val session = viewModel.state.value.session
-        assertTrue(session is SessionState.Authenticated)
-        val authSession = session as SessionState.Authenticated
-        assertEquals(AppTab.Home, authSession.selectedTab)
-        assertEquals(SyncStatus.FAILED, authSession.user.syncStatus)
-    }
-
-    @Test
-    fun forgotPassword_sendsResetLinkOrShowsValidationMessage() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway()
-        val viewModel = AuthViewModel(gateway)
-
-        // Blank email shows prompt
-        viewModel.forgotPassword()
-        assertTrue(viewModel.state.value.errorMessage?.contains("email") == true)
-
-        // Valid email dispatches reset email
-        viewModel.onEmailChange("victor@example.dk")
-        viewModel.forgotPassword()
-        advanceUntilIdle()
-
-        assertNull(viewModel.state.value.errorMessage)
-        assertEquals("Password reset link sent to victor@example.dk", viewModel.state.value.infoMessage)
+    @Test fun forgotPasswordValidatesEmailAndReportsAcceptedRequest() = runTest(dispatcher) {
+        val source = FakeSource(); val vm = AuthViewModel(source)
+        vm.forgotPassword()
+        assertTrue((vm.state.value as AuthUiState.SignedOut).errorMessage!!.contains("email"))
+        vm.setEmail("victor@example.dk"); vm.forgotPassword(); advanceUntilIdle()
+        assertEquals("victor@example.dk", source.resetEmail)
+        assertNotNull((vm.state.value as AuthUiState.SignedOut).infoMessage)
+        assertNull((vm.state.value as AuthUiState.SignedOut).errorMessage)
     }
 }
 
-private class FakeAuthGateway(
-    override val currentAuthUid: String? = null,
-    override val currentAuthEmail: String? = null,
-    private val simulateOfflineSyncFailure: Boolean = false
-) : AuthGateway {
-    var signedOut: Boolean = false
-
-    override suspend fun fetchOrCreateUser(
-        uid: String,
-        fallbackEmail: String,
-        fallbackName: String
-    ): Result<User> = Result.success(
-        User(
-            id = uid,
-            email = fallbackEmail,
-            displayName = fallbackName
-        )
+private class FakeSource(override val currentUid: String? = null, private val offline: Boolean = false) : AuthSessionSource {
+    override val currentEmail = "victor@example.dk"
+    private val users = MutableStateFlow<User?>(null)
+    var signedOut = false
+    var resetEmail: String? = null
+    private fun complete(user: User, callback: (Result<User>) -> Unit) { users.value = user; callback(Result.success(user)) }
+    override fun restore(uid: String, email: String, onResult: (Result<User>) -> Unit) = complete(User(uid, email, "Victor"), onResult)
+    override fun login(email: String, password: String, onResult: (Result<User>) -> Unit) = complete(User("login", email, "Victor"), onResult)
+    override fun register(name: String, email: String, password: String, phoneNumber: String?, onResult: (Result<User>) -> Unit) = complete(
+        User("register", email, name, phoneNumber = phoneNumber, syncStatus = if (offline) SyncStatus.FAILED else SyncStatus.SYNCED), onResult
     )
-
-    override suspend fun login(email: String, password: String): Result<User> =
-        Result.success(
-            User(
-                id = "uid-login",
-                email = email,
-                displayName = "Victor Munk",
-                phoneNumber = "+45 12 34 56 78"
-            )
-        )
-
-    override suspend fun register(
-        displayName: String,
-        email: String,
-        phoneNumber: String,
-        password: String
-    ): Result<User> = Result.success(
-        User(
-            id = "uid-register",
-            email = email,
-            displayName = displayName,
-            phoneNumber = phoneNumber,
-            syncStatus = if (simulateOfflineSyncFailure) SyncStatus.FAILED else SyncStatus.SYNCED
-        )
-    )
-
-    override suspend fun sendPasswordReset(email: String): Result<Unit> = Result.success(Unit)
-
-    override fun signOut() {
-        signedOut = true
+    override fun observeUser(user: User, onError: (String) -> Unit) = kotlinx.coroutines.flow.flow {
+        users.collect { if (it != null) emit(it) }
     }
+    override fun resetPassword(email: String, onResult: (Result<Unit>) -> Unit) { resetEmail = email; onResult(Result.success(Unit)) }
+    override fun signOut() { signedOut = true }
 }
