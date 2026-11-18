@@ -70,11 +70,11 @@ object BalanceCalculator {
 
         check(balances.values.fold(BigInteger.ZERO, BigInteger::add) == BigInteger.ZERO) { "Group balances must sum to zero." }
         return balances.map { (userId, amount) ->
-            val cents = try {
-                amount.longValueExact()
-            } catch (_: ArithmeticException) {
+            // BigInteger.longValueExact requires Android API 31; bitLength is API 1.
+            if (amount.bitLength() > 63) {
                 throw ArithmeticException("Balance for $userId exceeds the supported Long range.")
             }
+            val cents = amount.toLong()
             MemberBalance(userId = userId, netBalanceCents = cents, currency = currency)
         }
     }
