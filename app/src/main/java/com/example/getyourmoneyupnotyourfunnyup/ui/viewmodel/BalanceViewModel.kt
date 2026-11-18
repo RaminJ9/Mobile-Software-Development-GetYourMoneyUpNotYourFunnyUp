@@ -5,10 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.BalanceLedger
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.BalanceRepository
 import com.example.getyourmoneyupnotyourfunnyup.model.BalanceCalculator
+import com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer
+import com.example.getyourmoneyupnotyourfunnyup.model.SettlementCalculator
 import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -30,7 +35,8 @@ sealed interface BalanceUiState {
         val members: List<BalanceMember>,
         val hasLedgerEntries: Boolean,
         val pendingCount: Int,
-        val hasFailedSync: Boolean
+        val hasFailedSync: Boolean,
+        val suggestions: List<DebtTransfer> = emptyList()
     ) : BalanceUiState
 }
 
@@ -38,7 +44,8 @@ sealed interface BalanceUiState {
 class BalanceViewModel(
     private val accountId: String,
     private val groupId: String,
-    private val repository: BalanceRepository
+    private val repository: BalanceRepository,
+    private val calculationDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
     private val mutableState = MutableStateFlow<BalanceUiState>(BalanceUiState.Loading)
     val state = mutableState.asStateFlow()
@@ -64,7 +71,7 @@ class BalanceViewModel(
                         BalanceUiState.UnsupportedCurrency(ledger.group.currency)
                     } else {
                         try {
-                            present(ledger)
+                            withContext(calculationDispatcher) { present(ledger) }
                         } catch (_: IllegalArgumentException) {
                             BalanceUiState.Error("Some expenses or repayments are inconsistent. Check their amounts and shares.", canRetry = false)
                         } catch (_: ArithmeticException) {
@@ -74,7 +81,7 @@ class BalanceViewModel(
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (error: SecurityException) {
+            } catch (_: SecurityException) {
                 // Never retain the previous group's financial data after an access/session failure.
                 mutableState.value = BalanceUiState.Error("You don't have access to this group's balances. Sign in again or return to your groups.", canRetry = false)
             } catch (_: Exception) {
@@ -105,7 +112,8 @@ class BalanceViewModel(
             },
             hasLedgerEntries = activeExpenses.isNotEmpty() || ledger.settlements.any { it.status == SettlementStatus.COMPLETED },
             pendingCount = statuses.count { it != SyncStatus.SYNCED },
-            hasFailedSync = SyncStatus.FAILED in statuses
+            hasFailedSync = SyncStatus.FAILED in statuses,
+            suggestions = SettlementCalculator.suggest(balances)
         )
     }
 }

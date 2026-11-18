@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -115,6 +116,39 @@ private fun BalanceContent(state: BalanceUiState.Success, connection: Connection
                 }
             }
         }
+        item("settlement-heading") {
+            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Space4)) {
+                Text("Settle up", style = AppTypography.Section, color = AppColors.Ink900)
+                Text(
+                    if (state.suggestions.isEmpty()) "No payments needed. Everyone is settled."
+                    else if (state.suggestions.size == 1) "1 payment clears every balance in the group"
+                    else "${state.suggestions.size} payments clear every balance in the group",
+                    style = AppTypography.Caption,
+                    color = if (state.suggestions.isEmpty()) AppColors.Green700 else AppColors.Ink600
+                )
+            }
+        }
+        items(state.suggestions, key = { "transfer-${it.debtorId}-${it.creditorId}" }) { transfer ->
+            val debtor = state.members.first { it.userId == transfer.debtorId }
+            val creditor = state.members.first { it.userId == transfer.creditorId }
+            Surface(shape = AppShapes.ListCard, color = AppColors.White, border = BorderStroke(1.dp, AppColors.Line)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(AppSpacing.Space16),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.Space8)
+                ) {
+                    Text("${debtor.name} \u2192 ${creditor.name}", style = AppTypography.ItemTitle, color = AppColors.Ink900)
+                    Text(
+                        formatDanishAmountFromCents(transfer.amountCents),
+                        style = AppTypography.Section,
+                        color = when {
+                            debtor.isYou -> AppColors.Red700
+                            creditor.isYou -> AppColors.Green700
+                            else -> AppColors.Ink900
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -200,7 +234,8 @@ private fun BalancePreview() {
                 BalanceMember("you", "Ramin", -12550L, isYou = true),
                 BalanceMember("mads", "Mads", 12550L),
                 BalanceMember("ida", "Ida", 0L)
-            ), hasLedgerEntries = true, pendingCount = 1, hasFailedSync = false), {}, {}
+            ), hasLedgerEntries = true, pendingCount = 1, hasFailedSync = false,
+                suggestions = listOf(com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer("you", "mads", 12550L, "DKK"))), {}, {}
         )
     }
 }

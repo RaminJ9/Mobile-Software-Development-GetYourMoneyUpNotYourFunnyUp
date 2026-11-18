@@ -26,6 +26,25 @@ class BalanceUiTest {
         compose.onNodeWithTag("balance-bar-ida").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Is owed 125,50 kr"))
         compose.onNodeWithTag("balance-bar-zero").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Settled, 0,00 kr"))
     }
+    @Test fun settlementSectionShowsNamesAmountAndPaymentCount() {
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            BalanceScreen(BalanceUiState.Success("Trip", listOf(
+                BalanceMember("you", "Ramin", -12550, isYou = true),
+                BalanceMember("ida", "Ida", 12550)), true, 0, false,
+                listOf(com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer("you", "ida", 12550, "DKK"))), {}, {})
+        } }
+        compose.onNodeWithText("1 payment clears every balance in the group").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Ramin \u2192 Ida").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("125,50 kr").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Pay").assertDoesNotExist()
+    }
+    @Test fun settledSectionShowsNoPaymentSuggestions() {
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            BalanceScreen(BalanceUiState.Success("Trip", listOf(BalanceMember("you", "Ramin", 0)), true, 0, false), {}, {})
+        } }
+        compose.onNodeWithText("No payments needed. Everyone is settled.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+    }
     @Test fun failureOffersRetryAndBack() {
         var retried = false; var returned = false
         compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {

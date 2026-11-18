@@ -22,14 +22,16 @@ class BalanceVmTest {
         mapOf("you" to "Ramin", "friend" to "Ida"), listOf(Expense("e", "g", "Food", 10000,
         currency = "DKK", payerId = "friend", createdBy = "friend", splits = listOf(
             ExpenseSplit("s1", "e", "you", 5000), ExpenseSplit("s2", "e", "friend", 5000)))), emptyList())
-    private fun vm(source: MutableStateFlow<BalanceLedger>) = BalanceViewModel("you", "g", BalanceRepository { _, _ -> source })
+    private fun vm(source: MutableStateFlow<BalanceLedger>) = BalanceViewModel("you", "g", BalanceRepository { _, _ -> source }, dispatcher)
     @Test fun calculatesNamedBalancesAndUpdatesFromLocalLedger() = runTest(dispatcher) {
         val source = MutableStateFlow(ledger()); val model = vm(source)
         val first = model.state.value as BalanceUiState.Success
         assertEquals(-5000L, first.members.single { it.isYou }.amountCents)
         assertEquals("Ramin", first.members.single { it.isYou }.name)
+        assertEquals(listOf(DebtTransfer("you", "friend", 5000, "DKK")), first.suggestions)
         source.value = ledger().copy(expenses = emptyList())
         val empty = model.state.value as BalanceUiState.Success
+        assertTrue(empty.suggestions.isEmpty())
         assertFalse(empty.hasLedgerEntries); assertTrue(empty.members.all { it.amountCents == 0L })
     }
     @Test fun invalidSharesRecoverWhenCorrected() = runTest(dispatcher) {
@@ -64,11 +66,22 @@ class BalanceVmTest {
         var calls = 0
         val model = BalanceViewModel("you", "g", BalanceRepository { _, _ -> flow {
             calls++; if (calls == 1) error("unavailable") else { emit(ledger()); kotlinx.coroutines.awaitCancellation() }
-        } })
+        } }, dispatcher)
         assertTrue((model.state.value as BalanceUiState.Error).canRetry)
         model.retry()
         assertTrue(model.state.value is BalanceUiState.Success)
         model.retry(); assertEquals(2, calls)
+    }
+    @Test fun completedLocallyPendingRepaymentClearsSuggestions() = runTest(dispatcher) {
+        val source = MutableStateFlow(ledger()); val model = vm(source)
+        source.value = ledger().copy(settlements = listOf(Settlement(
+            id = "paid", groupId = "g", debtorId = "you", creditorId = "friend",
+            amountCents = 5000, currency = "DKK", paymentMethod = "Simulated", status = SettlementStatus.COMPLETED,
+            syncStatus = SyncStatus.PENDING_INSERT)))
+        val state = model.state.value as BalanceUiState.Success
+        assertTrue(state.suggestions.isEmpty())
+        assertTrue(state.members.all { it.amountCents == 0L })
+        assertEquals(1, state.pendingCount)
     }
     @Test fun amountsRetainExactDanishMinorUnitsAtLongBoundaries() {
         assertEquals("−92.233.720.368.547.758,08 kr", balanceAmount(Long.MIN_VALUE))
