@@ -1,6 +1,9 @@
 package com.example.getyourmoneyupnotyourfunnyup.data.repository
 
 import com.example.getyourmoneyupnotyourfunnyup.data.demo.DemoLedger
+import com.example.getyourmoneyupnotyourfunnyup.model.DietRule
+import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
+import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.myDebts
@@ -43,6 +46,27 @@ class InMemoryLedgerRepositoryTest {
         shares = mapOf(DemoLedger.ME to 10_000L, "jonas" to 10_000L, "mads" to 10_000L, "emil" to 10_000L),
         hasReceipt = false,
     )
+
+    @Test
+    fun signedInAccount_isMirroredIntoMe_soTheScanSplitUsesTheSavedProfile() = runTest {
+        val repo = repository(MutableStateFlow(true))
+        val account = User(
+            id = "firebase-uid", email = "victor@example.dk", displayName = "Victor M", phoneNumber = "+45 11 22 33 44",
+            excludeAlcohol = true, notificationSettings = NotificationSettings(expenseAlerts = true, paymentReminders = true, syncUpdates = false),
+        )
+
+        repo.useAccount(account)
+
+        val me = repo.snapshot.value.me
+        assertEquals("Victor M", me.name)
+        assertEquals("victor@example.dk", me.contact)
+        assertEquals("+45 11 22 33 44", me.phone)
+        assertEquals(setOf(DietRule.NO_ALCOHOL), me.dietRules)
+        assertFalse(repo.snapshot.value.notificationPrefs.syncUpdates)
+
+        repo.useAccount(account.copy(excludeAlcohol = false, excludeMeat = true))
+        assertEquals(setOf(DietRule.NO_MEAT), repo.snapshot.value.me.dietRules)
+    }
 
     @Test
     fun offlineExpense_isSavedLocallyAndStaysPendingUntilOnline() = runTest {

@@ -11,6 +11,7 @@ AI failures that were observed and how they were caught.
 | 16-11-2026 | Claude Code (agent) | Compare Mohammed's Home/Activity (#1) with ours, then use his ("is his okay to use?" → "use his screens … follow his good parts like testing and safety checks") | Both versions run side by side on the emulator; 116 unit tests; Mohammed's 10 compose UI tests on the emulator; lint compared with `main` (no new issues) | Use Mohammed's screens, fed from our ledger; small HiFi fixes allowed, no large changes to his code |
 | 17-11-2026 | Claude Code (agent) | Keep Bashir's group screens (#2), build ours to match, open the PR ("keep his group screen and build ours to match it, then create the pull request") | 151 unit tests (12 new for the groups adapter); lint 0 errors; clean merge into `main` | Our shell and group page stay; his Groups, Create group and Members screens are used, fed from our ledger |
 | 17-11-2026 | Claude Code (agent) | Finish everything that doesn't need teammates (device checks, this dossier) | All instrumented tests and a manual emulator pass of the group screens (see PR #3) | Human review of PR #3 by the teammates whose code changed |
+| 18-11-2026 | Claude Code (agent) | Compare Ramin's and Gustav's new work on `main` with ours ("compare Ramin's versions with ours"), then resolve PR #3's conflicts that way | Both versions' screens rendered side by side on the emulator; `main` built and its 139 unit tests run; settle-up search timed on groups of 4–14 people; after the merge 230 unit tests, lint 0 errors, all 59 instrumented tests on the emulator; Home, Profile, a group's Balances tab with an inline payment, Scan and Activity checked by hand | Use Gustav's login, registration, profile and nav bar and Ramin's balance maths; our screens go into their `AppShell`; the database version change waits for the team |
 
 ## How the AI was used
 
@@ -43,5 +44,15 @@ AI failures that were observed and how they were caught.
    unused imports and components. Each pass ended with a search for unused code, which removed them.
 7. **Data mapped to the wrong field.** A phone number was first put in a contact's email field; caught
    during review and covered by a test.
+8. **Merging `main` (18-11-2026).**
+   - **A risk taken against its own plan.** The agent had planned not to install `main`'s build on the
+     emulator, then did so for a screenshot test. No harm was done (both builds use database version 3,
+     so nothing was upgraded), and our build was reinstalled.
+   - **A test that could not fail.** The first test for negative receipt shares passed even without the
+     fix. Undoing the fix on purpose showed this; the test was tightened until it failed without the fix.
+   - **Found by measuring, not assumed.** The exact settle-up search was timed before being used: fine up
+     to 8 people with a balance, 4 s at 12, out of memory at 14. Bigger groups now use the quick plan.
+   - **A lint error added after the last lint run.** A late change used `remember` to run a side effect;
+     lint caught it before anything was pushed, and it was replaced by a small ViewModel.
 
 The team must still review PR #3; AI-assisted code reaches `main` only through a human-reviewed PR.

@@ -49,7 +49,7 @@ data class NotificationPrefs(
 /**
  * Immutable snapshot of everything the UI renders. Repositories emit a new snapshot on every change;
  * balances are never stored here — they are derived from [expenses] and [settlements]
- * (see [DebtCalculator] and `LedgerQueries.kt`).
+ * (see [BalanceCalculator] and `LedgerQueries.kt`).
  */
 data class LedgerSnapshot(
     val currentUserId: String,

@@ -2,8 +2,6 @@ package com.example.getyourmoneyupnotyourfunnyup
 
 import android.app.Application
 import android.content.Context
-import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.InMemoryLedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectionState
@@ -23,11 +21,6 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val connectivity = ConnectivityObserver(appContext)
-
-    val authRepository: AuthRepository by lazy {
-        val database = AppDatabase.getInstance(appContext)
-        AuthRepository(userDao = database.userDao, syncQueueDao = database.syncQueueDao)
-    }
 
     val ledgerRepository: LedgerRepository by lazy {
         InMemoryLedgerRepository(
