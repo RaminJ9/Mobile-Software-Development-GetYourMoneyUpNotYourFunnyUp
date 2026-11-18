@@ -13,6 +13,7 @@ data class User(
     val email: String,
     val displayName: String,
     val photoUrl: String? = null,
+    val phone: String? = null,
     val count: Int = 0,
     val notificationSettings: NotificationSettings = NotificationSettings(),
     val syncStatus: SyncStatus = SyncStatus.SYNCED,

@@ -14,6 +14,7 @@ object DatabaseContract {
         const val COL_EMAIL = "email"
         const val COL_DISPLAY_NAME = "display_name"
         const val COL_PHOTO_URL = "photo_url"
+        const val COL_PHONE = "phone"
         const val COL_COUNT = "count"
         const val COL_NOTIFICATIONS_ENABLED = "notifications_enabled"
         const val COL_PHONE_NUMBER = "phone_number"
@@ -32,6 +33,7 @@ object DatabaseContract {
                 $COL_EMAIL TEXT NOT NULL,
                 $COL_DISPLAY_NAME TEXT NOT NULL,
                 $COL_PHOTO_URL TEXT,
+                $COL_PHONE TEXT,
                 $COL_COUNT INTEGER NOT NULL DEFAULT 0,
                 $COL_NOTIFICATIONS_ENABLED INTEGER NOT NULL DEFAULT 1,
                 $COL_PHONE_NUMBER TEXT,
@@ -57,6 +59,10 @@ object DatabaseContract {
         const val COL_CREATED_AT = "created_at"
         const val COL_UPDATED_AT = "updated_at"
         const val COL_SYNC_STATUS = "sync_status"
+        /** Index into `AppColors.GroupColors` chosen at creation (never green/red). */
+        const val COL_COLOUR_INDEX = "colour_index"
+        /** Per-device/per-user star; local presentation preference. */
+        const val COL_IS_FAVOURITE = "is_favourite"
 
         const val CREATE_SQL = """
             CREATE TABLE IF NOT EXISTS $TABLE_NAME (
@@ -67,7 +73,9 @@ object DatabaseContract {
                 $COL_CREATED_BY TEXT NOT NULL,
                 $COL_CREATED_AT INTEGER NOT NULL,
                 $COL_UPDATED_AT INTEGER NOT NULL,
-                $COL_SYNC_STATUS TEXT NOT NULL DEFAULT 'SYNCED'
+                $COL_SYNC_STATUS TEXT NOT NULL DEFAULT 'SYNCED',
+                $COL_COLOUR_INDEX INTEGER NOT NULL DEFAULT 0,
+                $COL_IS_FAVOURITE INTEGER NOT NULL DEFAULT 0
             )
         """
     }
@@ -78,6 +86,8 @@ object DatabaseContract {
         const val COL_USER_ID = "user_id"
         const val COL_ROLE = "role"
         const val COL_JOINED_AT = "joined_at"
+        /** 1 while the member is an unregistered invite (`invited` badge). */
+        const val COL_INVITED = "invited"
 
         const val CREATE_SQL = """
             CREATE TABLE IF NOT EXISTS $TABLE_NAME (
@@ -85,6 +95,7 @@ object DatabaseContract {
                 $COL_USER_ID TEXT NOT NULL,
                 $COL_ROLE TEXT NOT NULL DEFAULT 'MEMBER',
                 $COL_JOINED_AT INTEGER NOT NULL,
+                $COL_INVITED INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY ($COL_GROUP_ID, $COL_USER_ID),
                 FOREIGN KEY ($COL_GROUP_ID) REFERENCES ${GroupsTable.TABLE_NAME}(${GroupsTable.COL_ID}) ON DELETE CASCADE,
                 FOREIGN KEY ($COL_USER_ID) REFERENCES ${UsersTable.TABLE_NAME}(${UsersTable.COL_ID}) ON DELETE CASCADE

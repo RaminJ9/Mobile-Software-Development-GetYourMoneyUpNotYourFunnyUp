@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -29,6 +28,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -211,7 +211,13 @@ private fun ScanNavTabItem(
     ) {
         Surface(
             modifier = Modifier
-                .offset(y = (-14).dp)
+                // Like the hi-fi's `margin-top: -30px`: the button rises above the bar without taking the
+                // label's space. A plain offset keeps its full height, which squeezed the label out.
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    val lift = 30.dp.roundToPx()
+                    layout(placeable.width, placeable.height - lift) { placeable.place(0, -lift) }
+                }
                 .size(AppTouchTargets.ScanFabSize)
                 .shadow(
                     elevation = 8.dp,

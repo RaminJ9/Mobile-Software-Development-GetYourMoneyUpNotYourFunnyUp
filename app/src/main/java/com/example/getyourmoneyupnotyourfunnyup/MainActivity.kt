@@ -1,14 +1,16 @@
 package com.example.getyourmoneyupnotyourfunnyup
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -20,12 +22,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.RepositoryAuthSessionSource
+import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.LoginScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.RegistrationScreen
-import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthForm
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthUiState
@@ -34,12 +37,15 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The design is light-only, so system bars always use dark icons on a transparent background.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         setContent {
-            GetYourMoneyUpNotYourFunnyUpTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    AppRoot(modifier = Modifier.padding(innerPadding))
-                }
+            // Screens follow the light-only hi-fi; switch this on once dark variants are designed.
+            GetYourMoneyUpNotYourFunnyUpTheme(darkTheme = false) {
+                AppRoot()
             }
         }
     }
@@ -58,16 +64,19 @@ fun AppRoot(modifier: Modifier = Modifier) {
     }
     val authViewModel: AuthViewModel = viewModel(factory = factory)
     val state by authViewModel.state.collectAsStateWithLifecycle()
+    // Log in and registration keep clear of the system bars here; the signed-in shell handles them per
+    // screen, so its screens can run edge to edge (the camera, for example).
+    val authModifier = modifier.background(AppColors.White).systemBarsPadding()
 
     when (val current = state) {
-        AuthUiState.Restoring -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AuthUiState.Restoring -> Box(authModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         is AuthUiState.SignedOut -> {
             val fields = current.fields
             if (fields.form == AuthForm.Login) {
                 LoginScreen(
-                    modifier = modifier,
+                    modifier = authModifier,
                     email = fields.email,
                     password = fields.password,
                     isLoading = current.isLoading,
@@ -81,7 +90,7 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 )
             } else {
                 RegistrationScreen(
-                    modifier = modifier,
+                    modifier = authModifier,
                     displayName = fields.displayName,
                     email = fields.email,
                     password = fields.password,

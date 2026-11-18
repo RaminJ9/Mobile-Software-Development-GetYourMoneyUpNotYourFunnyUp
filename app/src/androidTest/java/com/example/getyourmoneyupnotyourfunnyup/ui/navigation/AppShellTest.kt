@@ -3,6 +3,7 @@ package com.example.getyourmoneyupnotyourfunnyup.ui.navigation
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
@@ -16,20 +17,25 @@ class AppShellTest {
     @get:Rule val compose = createComposeRule()
     private val user = User("u", "ramin@example.com", "Ramin")
 
-    @Test fun startsOnHomeAndExposesHonestUnavailableDestinations() {
+    @Test fun everyTabShowsItsScreen_andScanOpensFullScreen() {
         compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme { AppShell(user, {}) } }
         compose.onNodeWithContentDescription("Home tab").assertIsSelected()
-        compose.onNodeWithText("Hi, Ramin").assertExists()
-        compose.onNodeWithText("Home data unavailable.", substring = true).assertExists()
+        // Home is fed by the ledger, which takes the signed-in account's name.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Hi, Ramin").fetchSemanticsNodes().isNotEmpty() }
+
         compose.onNodeWithContentDescription("Groups tab").performClick()
-        compose.onNodeWithText("Groups are not connected yet.").assertExists()
-        compose.onNodeWithContentDescription("Scan tab").performClick()
-        compose.onNodeWithText("Receipt scanning is not connected yet.").assertExists()
+        compose.onNode(hasText("Groups") and isHeading()).assertExists()
         compose.onNodeWithContentDescription("Activity tab").performClick()
-        compose.onNodeWithText("Activity history unavailable").assertExists()
-        compose.onNodeWithText("No activity yet").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activity tab").assertIsSelected()
+        compose.onAllNodesWithText("Activity").assertCountEquals(2) // tab label and screen title
         compose.onNodeWithContentDescription("Profile tab").performClick()
         compose.onNodeWithText(user.email).assertExists()
+
+        // Scan is a full-screen flow on top, without the bottom bar; Back returns to the tab.
+        compose.onNodeWithContentDescription("Scan tab").performClick()
+        compose.onNodeWithContentDescription("Home tab").assertDoesNotExist()
+        Espresso.pressBack()
+        compose.onNodeWithContentDescription("Profile tab").assertIsSelected()
     }
 
     @Test fun logoutRemovesShellAndAnotherSessionStartsOnHome() {
@@ -41,7 +47,9 @@ class AppShellTest {
             }
         }
         compose.onNodeWithContentDescription("Profile tab").performClick()
-        compose.onNodeWithText("Log out").performScrollTo().performClick()
+        // The profile is a lazy list: rows below the fold don't exist until the list scrolls to them.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Log out"))
+        compose.onNodeWithText("Log out").performClick()
         compose.runOnIdle { assertTrue(loggedOut) }
         compose.onNodeWithContentDescription("Profile tab").assertDoesNotExist()
         compose.runOnIdle { signedIn.value = true }

@@ -4,10 +4,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,8 +39,9 @@ sealed interface ActivityAction {
     data object MarkAllRead : ActivityAction
 }
 
+/** [onMarkAllRead] lets the data source save "Mark all as read" (the ViewModel's read state is session-only). */
 @Composable
-fun ActivityRoute(viewModel: ActivityViewModel, modifier: Modifier = Modifier) {
+fun ActivityRoute(viewModel: ActivityViewModel, modifier: Modifier = Modifier, onMarkAllRead: () -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connection = rememberConnectionState()
     val now = rememberPresentationTime()
@@ -59,7 +62,10 @@ fun ActivityRoute(viewModel: ActivityViewModel, modifier: Modifier = Modifier) {
                 is ActivityAction.Confirm -> viewModel.confirmPayment(action.eventId)
                 is ActivityAction.Retry -> viewModel.retry(action.eventId)
                 ActivityAction.Cancel -> viewModel.cancelPayment()
-                ActivityAction.MarkAllRead -> viewModel.markAllRead()
+                ActivityAction.MarkAllRead -> {
+                    viewModel.markAllRead()
+                    onMarkAllRead()
+                }
             }
         }, modifier)
 }
@@ -126,17 +132,23 @@ private fun ActivityContent(state: ActivityUiState.Success, onAction: (ActivityA
                 )
             }
         }
+        // Above the list, not in it: an item inserted at the top of a LazyColumn after it has drawn is
+        // scrolled out of view (the list keeps its first visible item in place).
+        if (state.data.sync.hasFeedback || state.sourceError != null) Column(
+            Modifier.padding(start = AppSpacing.Space16, end = AppSpacing.Space16, bottom = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (state.data.sync.hasFeedback) SyncFeedback(state.data.sync)
+            state.sourceError?.let { message -> Text(message, style = AppTypography.Caption, color = AppColors.Ink600) }
+        }
+        // A new filter starts at the top instead of keeping the previous filter's scroll anchor.
+        val listState = rememberSaveable(state.filter, saver = LazyListState.Saver) { LazyListState() }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
+            state = listState,
             contentPadding = PaddingValues(start = AppSpacing.Space16, end = AppSpacing.Space16, bottom = AppSpacing.Space24),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (state.data.sync.hasFeedback) item("sync-feedback") { SyncFeedback(state.data.sync) }
-            state.sourceError?.let { message ->
-                item("source-error") {
-                    Text(message, style = AppTypography.Caption, color = AppColors.Ink600)
-                }
-            }
             if (state.data.events == null) item("unavailable") {
                 Text(
                     "Activity history unavailable",

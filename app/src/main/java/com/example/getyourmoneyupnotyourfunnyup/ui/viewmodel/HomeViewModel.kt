@@ -29,7 +29,9 @@ sealed interface HomeUiState {
         val outstanding: List<OutstandingPayment> = data.finances?.outstandingPayments.orEmpty().filter {
             it.transfer.debtorId == data.user.id && it.transfer.currency == "DKK" && it.transfer.amountCents > 0
         }.distinctBy { it.id }
+        // Biggest first, so a card that was just paid keeps its place instead of jumping to the end.
         val payments: List<OutstandingPayment> = (outstanding + recordedPayments.values).distinctBy { it.id }
+            .sortedByDescending { it.transfer.amountCents }
         val unpaid: List<OutstandingPayment> = outstanding.filter { paymentStates[it.id] !is InlineActionState.Done }
         val isWorking: Boolean = paymentStates.values.any { it == InlineActionState.Working }
         val oweCents: Long = unpaid.sumOf { it.transfer.amountCents }

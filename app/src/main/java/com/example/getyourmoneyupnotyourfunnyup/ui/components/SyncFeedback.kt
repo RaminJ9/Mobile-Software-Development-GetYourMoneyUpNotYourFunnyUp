@@ -40,7 +40,7 @@ fun rememberPresentationTime(): Long {
 fun SyncFeedback(sync: SyncPresentation, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(AppSpacing.Space8)) {
         if (sync.connection == ConnectionState.Offline) {
-            OfflineBanner(sync.savedAt?.let { dateText(it, "HH:mm") })
+            OfflineBanner(sync.savedAt?.let { dateText(it, "HH:mm") }, note = sync.offlineNote)
         }
         sync.pendingCount?.takeIf { it > 0 }?.let { count ->
             FeedbackMessage("$count ${if (count == 1) "change" else "changes"} waiting to sync", AppColors.Amber100, AppColors.Amber800)

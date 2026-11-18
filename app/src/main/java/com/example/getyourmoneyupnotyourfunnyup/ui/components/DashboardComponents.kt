@@ -32,7 +32,17 @@ enum class DashboardIcon(val path: String) {
     Edit("M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"),
     Warning("M12 8v4 M12 16h.01"),
     Offline("m2 2 20 20 M5.8 5.8A7 7 0 0 0 7 19h10a4.5 4.5 0 0 0 2.6-.8 M21.5 15.5A4.5 4.5 0 0 0 17.5 10h-.5a7 7 0 0 0-6.3-4"),
-    Star("m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z")
+    Star("m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"),
+    StarOutline("m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"),
+    Search("M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M20 20l-3.5-3.5"),
+    Back("m15 18-6-6 6-6"),
+    Info("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 8v4 M12 16h.01"),
+    UserPlus("M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M8.5 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M19 8v6 M22 11h-6"),
+    Home("M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"),
+    Users("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75"),
+    ScanReceipt("M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M7 9h10 M7 12.5h10 M7 16h6"),
+    Clock("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7.5V12l3 2"),
+    Person("M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M4 21a8 8 0 0 1 16 0")
 }
 
 @Composable
@@ -64,7 +74,8 @@ fun DashboardButton(
     content: Color = AppColors.Green700,
     enabled: Boolean = true,
     outlined: Boolean = false,
-    borderColour: Color = AppColors.Line
+    borderColour: Color = AppColors.Line,
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Button(
         onClick = onClick,
@@ -76,6 +87,10 @@ fun DashboardButton(
         contentPadding = PaddingValues(horizontal = AppSpacing.Space12, vertical = AppSpacing.Space8)
     ) {
         Text(text, style = AppTypography.ButtonInline)
+        if (trailing != null) {
+            Spacer(Modifier.width(6.dp))
+            trailing()
+        }
     }
 }
 
@@ -94,18 +109,23 @@ fun DashboardAvatar(
     }
 }
 
+/**
+ * "You're offline · showing saved data from 10:42." plus an optional [note] such as "Anything you add
+ * syncs when you're back." Only pass a note when queued changes really do upload on reconnect.
+ */
 @Composable
-fun OfflineBanner(savedAtLabel: String?, modifier: Modifier = Modifier) {
-    Surface(modifier, shape = AppShapes.SecondaryButton, color = AppColors.Surface) {
+fun OfflineBanner(savedAtLabel: String?, modifier: Modifier = Modifier, note: String? = null) {
+    Surface(modifier.fillMaxWidth(), shape = AppShapes.SecondaryButton, color = AppColors.Surface) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             DashboardSymbol(DashboardIcon.Offline, colour = AppColors.Ink700, modifier = Modifier.size(18.dp))
+            val status = if (savedAtLabel == null) "You're offline · showing available data."
+                else "You're offline · showing saved data from $savedAtLabel."
             Text(
-                if (savedAtLabel == null) "You're offline · showing available data."
-                else "You're offline · showing saved data from $savedAtLabel.",
+                if (note == null) status else "$status $note",
                 style = AppTypography.CaptionStrong,
                 color = AppColors.Ink700
             )
@@ -142,7 +162,9 @@ fun InlinePaymentActions(
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    soft: Boolean = false
+    soft: Boolean = false,
+    /** True only when settling is impossible; a button disabled while another payment runs says nothing. */
+    unavailable: Boolean = !enabled
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(AppSpacing.Space8)) {
         when (state) {
@@ -169,7 +191,7 @@ fun InlinePaymentActions(
                     if (soft) AppColors.Red100 else AppColors.Red700,
                     if (soft) AppColors.Red700 else AppColors.White, enabled
                 )
-                if (!enabled) Text("Settlement service unavailable", style = AppTypography.Caption, color = AppColors.Ink600)
+                if (unavailable) Text("Settlement service unavailable", style = AppTypography.Caption, color = AppColors.Ink600)
             }
         }
     }

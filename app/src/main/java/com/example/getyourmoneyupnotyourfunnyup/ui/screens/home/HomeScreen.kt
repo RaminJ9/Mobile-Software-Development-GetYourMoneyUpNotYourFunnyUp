@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -64,7 +65,10 @@ fun HomeRoute(
         if (connection == ConnectionState.Online) viewModel.retryObservation()
     }
     val shown = (state as? HomeUiState.Success)?.let {
-        it.copy(data = it.data.copy(nowMillis = now, sync = it.data.sync.copy(connection = connection)))
+        // The clock ticks once a minute; never fall behind the data's own time, or a payment made
+        // "just now" is treated as in the future and left out of the Paid out chart until the next tick.
+        val nowMillis = maxOf(now, it.data.nowMillis)
+        it.copy(data = it.data.copy(nowMillis = nowMillis, sync = it.data.sync.copy(connection = connection)))
     } ?: state
     HomeScreen(shown, { action ->
             when (action) {
@@ -265,14 +269,20 @@ private fun BalanceHero(state: HomeUiState.Success, onToggle: () -> Unit, modifi
                     )
                     Text("kr", style = AppTypography.ItemTitle, color = AppColors.Red700)
                 }
-                val count = state.owingGroupCount
-                Text("$count ${if (count == 1) "group" else "groups"}", style = AppTypography.Caption, color = AppColors.Red800)
+                Text(groupsLabel(state.owingGroupCount), style = AppTypography.Caption, color = AppColors.Red800)
                 DashboardButton(
-                    if (state.paymentsExpanded) "Hide ⌃" else "Pay now ⌄",
+                    if (state.paymentsExpanded) "Hide" else "Pay now",
                     onToggle,
                     Modifier.fillMaxWidth(),
                     AppColors.Red700,
-                    AppColors.White
+                    AppColors.White,
+                    trailing = {
+                        DashboardSymbol(
+                            DashboardIcon.Chevron,
+                            Modifier.size(18.dp).rotate(if (state.paymentsExpanded) 180f else 0f),
+                            AppColors.White
+                        )
+                    }
                 )
             } else {
                 Box(
@@ -290,6 +300,14 @@ private fun BalanceHero(state: HomeUiState.Success, onToggle: () -> Unit, modifi
         }
     }
 }
+
+private fun groupsLabel(count: Int) = if (count == 1) "1 group" else "$count groups"
+
+private fun membersLabel(count: Int) = if (count == 1) "1 member" else "$count members"
+
+/** "today", "yesterday" or "Sat 14 Nov", for "Since …" and "Active …" (only the relative words are lowercase). */
+private fun dayPhrase(millis: Long, nowMillis: Long) =
+    relativeDate(millis, nowMillis).let { if (it == "Today" || it == "Yesterday") it.lowercase() else it }
 
 @Composable
 private fun PaymentsDue(state: HomeUiState.Success, onAction: (HomeAction) -> Unit, modifier: Modifier) {
@@ -328,7 +346,7 @@ private fun PaymentsDue(state: HomeUiState.Success, onAction: (HomeAction) -> Un
                     Column(Modifier.weight(1f)) {
                         Text("Payments due", style = AppTypography.Subsection, color = AppColors.Ink900)
                         Text(
-                            "${state.owingGroupCount} groups · ${formatDanishAmountFromCents(state.oweCents)}",
+                            "${groupsLabel(state.owingGroupCount)} · ${formatDanishAmountFromCents(state.oweCents)}",
                             style = AppTypography.Caption,
                             color = AppColors.Red800
                         )
@@ -345,7 +363,7 @@ private fun PaymentsDue(state: HomeUiState.Success, onAction: (HomeAction) -> Un
                     Surface(color = AppColors.White, shape = AppShapes.BigButton) {
                         Column(Modifier.padding(AppSpacing.Space12), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(
-                                "Pay ${formatDanishAmountFromCents(state.oweCents)} to ${state.owingGroupCount} groups?",
+                                "Pay ${formatDanishAmountFromCents(state.oweCents)} to ${groupsLabel(state.owingGroupCount)}?",
                                 style = AppTypography.BodyStrong
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.Space8)) {
@@ -393,7 +411,7 @@ private fun PaymentsDue(state: HomeUiState.Success, onAction: (HomeAction) -> Un
                                         color = AppColors.Ink900
                                     )
                                     Text(
-                                        "To ${payment.creditorName} · Since ${relativeDate(payment.since, state.data.nowMillis).lowercase()}",
+                                        "To ${payment.creditorName} · Since ${dayPhrase(payment.since, state.data.nowMillis)}",
                                         style = AppTypography.Caption,
                                         color = AppColors.Ink600
                                     )
@@ -412,7 +430,8 @@ private fun PaymentsDue(state: HomeUiState.Success, onAction: (HomeAction) -> Un
                                 { onAction(HomeAction.Cancel) },
                                 { onAction(HomeAction.Confirm(payment.id)) },
                                 enabled = state.canSettle && state.hasFinancialSummary && (!state.isWorking || action == InlineActionState.Working),
-                                soft = true
+                                soft = true,
+                                unavailable = !state.canSettle || !state.hasFinancialSummary
                             )
                         }
                     }
@@ -469,7 +488,7 @@ private fun GroupRow(group: DashboardGroup, state: HomeUiState.Success, onClick:
                         )
                     }
                 } else Text(
-                    "${group.group.members.size} members · Active ${relativeDate(group.lastActivityAt, state.data.nowMillis).lowercase()}",
+                    "${membersLabel(group.group.members.size)} · Active ${dayPhrase(group.lastActivityAt, state.data.nowMillis)}",
                     style = AppTypography.Caption,
                     color = AppColors.Ink600
                 )

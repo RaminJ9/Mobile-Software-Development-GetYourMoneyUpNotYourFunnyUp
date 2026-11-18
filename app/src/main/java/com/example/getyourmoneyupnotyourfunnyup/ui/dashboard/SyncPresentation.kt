@@ -7,7 +7,9 @@ data class SyncPresentation(
     val savedAt: Long? = null,
     val pendingCount: Int? = null,
     val failureMessage: String? = null,
-    val acknowledgedRecovery: String? = null
+    val acknowledgedRecovery: String? = null,
+    /** Extra offline-banner sentence; set only by a source that uploads queued changes on reconnect. */
+    val offlineNote: String? = null
 ) {
     init { require(pendingCount == null || pendingCount >= 0) }
     val hasFeedback: Boolean get() = connection == ConnectionState.Offline || (pendingCount ?: 0) > 0 ||
