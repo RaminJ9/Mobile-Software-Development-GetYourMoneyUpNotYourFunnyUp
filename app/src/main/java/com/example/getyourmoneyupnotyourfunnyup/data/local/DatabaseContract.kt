@@ -17,6 +17,13 @@ object DatabaseContract {
         const val COL_PHONE = "phone"
         const val COL_COUNT = "count"
         const val COL_NOTIFICATIONS_ENABLED = "notifications_enabled"
+        const val COL_PHONE_NUMBER = "phone_number"
+        const val COL_EXCLUDE_ALCOHOL = "exclude_alcohol"
+        const val COL_EXCLUDE_MEAT = "exclude_meat"
+        const val COL_NOTIFY_NEW_EXPENSES = "notify_new_expenses"
+        const val COL_NOTIFY_CHANGED_EXPENSES = "notify_changed_expenses"
+        const val COL_NOTIFY_PAYMENT_REMINDERS = "notify_payment_reminders"
+        const val COL_NOTIFY_SYNC_UPDATES = "notify_sync_updates"
         const val COL_SYNC_STATUS = "sync_status"
         const val COL_UPDATED_AT = "updated_at"
 
@@ -29,6 +36,13 @@ object DatabaseContract {
                 $COL_PHONE TEXT,
                 $COL_COUNT INTEGER NOT NULL DEFAULT 0,
                 $COL_NOTIFICATIONS_ENABLED INTEGER NOT NULL DEFAULT 1,
+                $COL_PHONE_NUMBER TEXT,
+                $COL_EXCLUDE_ALCOHOL INTEGER NOT NULL DEFAULT 0,
+                $COL_EXCLUDE_MEAT INTEGER NOT NULL DEFAULT 0,
+                $COL_NOTIFY_NEW_EXPENSES INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_CHANGED_EXPENSES INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_PAYMENT_REMINDERS INTEGER NOT NULL DEFAULT 1,
+                $COL_NOTIFY_SYNC_UPDATES INTEGER NOT NULL DEFAULT 1,
                 $COL_SYNC_STATUS TEXT NOT NULL DEFAULT 'SYNCED',
                 $COL_UPDATED_AT INTEGER NOT NULL
             )

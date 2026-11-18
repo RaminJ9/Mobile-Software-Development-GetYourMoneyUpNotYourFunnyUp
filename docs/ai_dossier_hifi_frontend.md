@@ -12,6 +12,7 @@ AI failures that were observed and how they were caught.
 | 17-11-2026 | Claude Code (agent) | Keep Bashir's group screens (#2), build ours to match, open the PR ("keep his group screen and build ours to match it, then create the pull request") | 151 unit tests (12 new for the groups adapter); lint 0 errors; clean merge into `main` | Our shell and group page stay; his Groups, Create group and Members screens are used, fed from our ledger |
 | 17-11-2026 | Claude Code (agent) | Finish everything that doesn't need teammates (device checks, this dossier) | All instrumented tests and a manual emulator pass of the group screens (see PR #3) | Human review of PR #3 by the teammates whose code changed |
 | 18-11-2026 | Claude Code (agent), plan mode first | Real receipt scanning ("We need to add actual scanning of the receipt") on branch `feature/receipt-scanning`: CameraX camera, ML Kit on-device text recognition (bundled, offline), our own Danish receipt parser | 165 unit tests (7 parser, 7 scan ViewModel); 3 instrumented tests reading a drawn receipt with the real ML Kit model; camera, reading, "couldn't read" and retake checked on the emulator; lint 0 errors | Plan approved by the user; separate PR after #3 |
+| 18-11-2026 | Claude Code (agent) | Compare Ramin's and Gustav's new work on `main` with ours ("compare Ramin's versions with ours"), then resolve PR #3's conflicts that way | Both versions' screens rendered side by side on the emulator; `main` built and its 139 unit tests run; settle-up search timed on groups of 4–14 people; after the merge 230 unit tests, lint 0 errors, all 59 instrumented tests on the emulator; Home, Profile, a group's Balances tab with an inline payment, Scan and Activity checked by hand | Use Gustav's login, registration, profile and nav bar and Ramin's balance maths; our screens go into their `AppShell`; the database version change waits for the team |
 
 ## How the AI was used
 
@@ -44,7 +45,6 @@ AI failures that were observed and how they were caught.
    unused imports and components. Each pass ended with a search for unused code, which removed them.
 7. **Data mapped to the wrong field.** A phone number was first put in a contact's email field; caught
    during review and covered by a test.
-
 8. **Receipt scanning (18-11-2026).** Five more mistakes were caught before commit:
    - **Compose upgraded by accident.** Coil 3 silently upgraded Compose for the whole app; found from new
      deprecation warnings. Coil was removed.
@@ -56,5 +56,16 @@ AI failures that were observed and how they were caught.
    - **A test JUnit refused to run.** It returned a value; found on the device.
 
    The plan's "+4 MB" size estimate was also wrong. The real cost is about +12 MB per phone.
+
+9. **Merging `main` (18-11-2026).**
+   - **A risk taken against its own plan.** The agent had planned not to install `main`'s build on the
+     emulator, then did so for a screenshot test. No harm was done (both builds use database version 3,
+     so nothing was upgraded), and our build was reinstalled.
+   - **A test that could not fail.** The first test for negative receipt shares passed even without the
+     fix. Undoing the fix on purpose showed this; the test was tightened until it failed without the fix.
+   - **Found by measuring, not assumed.** The exact settle-up search was timed before being used: fine up
+     to 8 people with a balance, 4 s at 12, out of memory at 14. Bigger groups now use the quick plan.
+   - **A lint error added after the last lint run.** A late change used `remember` to run a side effect;
+     lint caught it before anything was pushed, and it was replaced by a small ViewModel.
 
 The team must still review PR #3; AI-assisted code reaches `main` only through a human-reviewed PR.

@@ -5,16 +5,13 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.MainTab
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
 
-/** Screens from `docs/navigation_model.drawio.xml`. */
+/**
+ * Signed-in screens from `docs/navigation_model.drawio.xml`. Logging in and registering happen before
+ * the shell exists (see `AppRoot` in `MainActivity.kt`).
+ */
 sealed interface Destination {
-    /** S1 Login */
-    data object Login : Destination
-
-    /** S2 Registration */
-    data object Register : Destination
-
     /** S3 View groups (Home). */
     data object Home : Destination
 
@@ -37,21 +34,13 @@ sealed interface Destination {
 }
 
 /** The bottom-nav tab highlighted for a destination, or null when the bar is hidden. */
-val Destination.tab: MainTab?
+val Destination.tab: AppTab?
     get() = when (this) {
-        Destination.Home -> MainTab.Home
-        Destination.Groups, is Destination.GroupDetail -> MainTab.Groups
-        Destination.Activity -> MainTab.Activity
-        Destination.Profile -> MainTab.Profile
-        else -> null
-    }
-
-private val MainTab.destination: Destination
-    get() = when (this) {
-        MainTab.Home -> Destination.Home
-        MainTab.Groups -> Destination.Groups
-        MainTab.Activity -> Destination.Activity
-        MainTab.Profile -> Destination.Profile
+        Destination.Home -> AppTab.Home
+        Destination.Groups, is Destination.GroupDetail -> AppTab.Groups
+        Destination.Activity -> AppTab.Activity
+        Destination.Profile -> AppTab.Profile
+        Destination.CreateGroup, is Destination.Scan -> null
     }
 
 /** One screen on the back stack. It owns the ViewModels created while it is shown. */
@@ -87,7 +76,7 @@ class AppNavigator(start: Destination) : ViewModel() {
         old.viewModelStore.clear()
     }
 
-    /** Clears the stack, e.g. after logging in or out. */
+    /** Clears the stack, e.g. when logging out. */
     fun resetTo(destination: Destination) {
         val old = backStack.toList()
         backStack.clear()
@@ -95,9 +84,18 @@ class AppNavigator(start: Destination) : ViewModel() {
         old.forEach { it.viewModelStore.clear() }
     }
 
-    /** Bottom-nav switch. Home stays at the root so Back from any tab returns Home. */
-    fun selectTab(tab: MainTab) {
-        val target = tab.destination
+    /**
+     * Bottom-nav switch. Home stays at the root so Back from any tab returns Home. Scan is not a tab:
+     * it opens the full-screen scan flow on top, pre-filled with the group that is open.
+     */
+    fun selectTab(tab: AppTab) {
+        val target = when (tab) {
+            AppTab.Home -> Destination.Home
+            AppTab.Groups -> Destination.Groups
+            AppTab.Activity -> Destination.Activity
+            AppTab.Profile -> Destination.Profile
+            AppTab.Scan -> return navigate(Destination.Scan((current.destination as? Destination.GroupDetail)?.groupId))
+        }
         if (current.destination == target) return
         val home = backStack.firstOrNull { it.destination == Destination.Home } ?: newEntry(Destination.Home)
         val next = if (target == Destination.Home) {

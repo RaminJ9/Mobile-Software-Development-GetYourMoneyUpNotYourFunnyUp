@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.onStart
  *   `expense_splits`, `settlements`, `sync_queue`) and performance indexes.
  * - Exposes reactive table invalidation streams (`observeTables`) for Compose UI flows.
  */
-class AppDatabase private constructor(
+class AppDatabase internal constructor(
     context: Context,
     databaseName: String? = DatabaseContract.DATABASE_NAME
 ) : SQLiteOpenHelper(
@@ -61,12 +61,48 @@ class AppDatabase private constructor(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        val users = DatabaseContract.UsersTable
         if (oldVersion < 2) {
-            runCatching {
-                db.execSQL(
-                    "ALTER TABLE ${DatabaseContract.UsersTable.TABLE_NAME} " +
-                        "ADD COLUMN ${DatabaseContract.UsersTable.COL_COUNT} INTEGER NOT NULL DEFAULT 0"
-                )
+            // Some early v1 databases already included count; inspect rather than suppress SQL errors.
+            val hasCount = db.rawQuery("PRAGMA table_info(${users.TABLE_NAME})", null).use { cursor ->
+                val nameIndex = cursor.getColumnIndexOrThrow("name")
+                var found = false
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIndex) == users.COL_COUNT) found = true
+                }
+                found
+            }
+            if (!hasCount) {
+                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN ${users.COL_COUNT} INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        if (oldVersion < 3) {
+            // SQLiteOpenHelper wraps onUpgrade in a transaction. No tables or records are replaced.
+            db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN ${users.COL_PHONE_NUMBER} TEXT")
+            for (column in listOf(users.COL_EXCLUDE_ALCOHOL, users.COL_EXCLUDE_MEAT)) {
+                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN $column INTEGER NOT NULL DEFAULT 0")
+            }
+            for (column in listOf(
+                users.COL_NOTIFY_NEW_EXPENSES, users.COL_NOTIFY_CHANGED_EXPENSES,
+                users.COL_NOTIFY_PAYMENT_REMINDERS, users.COL_NOTIFY_SYNC_UPDATES
+            )) {
+                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN $column INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("UPDATE ${users.TABLE_NAME} SET $column = ${users.COL_NOTIFICATIONS_ENABLED}")
+            }
+        }
+        if (oldVersion < 3) {
+            val table = DatabaseContract.UsersTable.TABLE_NAME
+            val alterations = listOf(
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_PHONE_NUMBER} TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_ALCOHOL} INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_MEAT} INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_NEW_EXPENSES} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_CHANGED_EXPENSES} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_PAYMENT_REMINDERS} INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_SYNC_UPDATES} INTEGER NOT NULL DEFAULT 1"
+            )
+            for (sql in alterations) {
+                runCatching { db.execSQL(sql) }
             }
         }
         if (oldVersion < 3) {

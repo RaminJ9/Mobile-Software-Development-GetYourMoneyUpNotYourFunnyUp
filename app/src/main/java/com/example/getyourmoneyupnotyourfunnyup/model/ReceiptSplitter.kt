@@ -25,6 +25,12 @@ data class ReceiptItem(
     val lowConfidence: Boolean = false
 ) {
     val priceCents: Long get() = MoneyFormat.parse(priceText) ?: 0L
+
+    /**
+     * Deposits, discounts and any other negative line are spread by how much each person had instead of
+     * being ticked per person, so nobody's share can drop below zero.
+     */
+    val sharedByShare: Boolean get() = kind != ReceiptItemKind.REGULAR || priceCents < 0
 }
 
 /** Turns receipt lines + "who had what" into one amount per person. All maths in øre. */
@@ -64,14 +70,14 @@ object ReceiptSplitter {
         if (active.isEmpty()) return emptyMap()
         val base = LinkedHashMap<String, Long>().apply { active.forEach { put(it, 0L) } }
 
-        items.filter { it.kind == ReceiptItemKind.REGULAR }.forEach { item ->
+        items.filterNot { it.sharedByShare }.forEach { item ->
             val who = sharers(item, members, overrides, excluded).ifEmpty { active }
             DebtCalculator.splitEqually(item.priceCents, who).forEach { (id, part) ->
                 base[id] = (base[id] ?: 0L) + part
             }
         }
 
-        val extra = items.filter { it.kind != ReceiptItemKind.REGULAR }.sumOf { it.priceCents }
+        val extra = items.filter { it.sharedByShare }.sumOf { it.priceCents }
         val baseTotal = base.values.sum()
         val shares = LinkedHashMap<String, Long>()
         if (baseTotal == 0L) {

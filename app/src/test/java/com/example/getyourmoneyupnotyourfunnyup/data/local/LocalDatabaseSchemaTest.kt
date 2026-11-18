@@ -56,11 +56,19 @@ class LocalDatabaseSchemaTest {
             id = "usr_1",
             email = "alex@example.com",
             displayName = "Alex",
+            phoneNumber = "+45 12 34 56 78",
             count = 7,
+            excludeAlcohol = true,
+            excludeMeat = false,
+            notificationSettings = com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings(
+                expenseAlerts = true, changedExpenseAlerts = false, paymentReminders = true, syncUpdates = false
+            ),
             syncStatus = SyncStatus.PENDING_INSERT
         )
         val userDomain = userEntity.toDomain()
         assertEquals(7, userDomain.count)
+        assertEquals("+45 12 34 56 78", userDomain.phoneNumber)
+        assertTrue(userDomain.excludeAlcohol)
         assertEquals(SyncStatus.PENDING_INSERT, userDomain.syncStatus)
         assertEquals(userEntity, UserEntity.fromDomain(userDomain))
 

@@ -202,7 +202,7 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
     val shares = if (group == null) emptyMap() else ReceiptSplitter.shares(local.items, members, local.overrides, local.excluded, payerId)
 
     // Diet-rule notice: the first person automatically taken off items.
-    val regular = local.items.filter { it.kind == ReceiptItemKind.REGULAR }
+    val regular = local.items.filterNot { it.sharedByShare }
     val ruled = active.firstNotNullOfOrNull { person ->
         // Items the diet rule took this person off, and nobody has added them back to.
         val removed = regular.count { item ->
@@ -231,7 +231,7 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
             },
         )
     }
-    val extras = local.items.filter { it.kind != ReceiptItemKind.REGULAR }
+    val extras = local.items.filter { it.sharedByShare }
     val extrasNote = if (extras.isEmpty()) null else extras.joinToString(" and ") {
         val label = if (it.kind == ReceiptItemKind.DEPOSIT) "Deposit (pant)" else "discount"
         "$label ${MoneyFormat.signed(it.priceCents)} kr"
@@ -286,7 +286,8 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
                 id = item.id, name = item.name, priceText = item.priceText,
                 tag = when {
                     item.kind == ReceiptItemKind.DEPOSIT -> ItemTag.Deposit
-                    item.kind == ReceiptItemKind.DISCOUNT -> ItemTag.Discount
+                    // A typed negative line is split like a discount, so it is labelled as one.
+                    item.kind == ReceiptItemKind.DISCOUNT || item.priceCents < 0 -> ItemTag.Discount
                     item.isAlcohol -> ItemTag.Alcohol
                     item.lowConfidence -> ItemTag.CheckPrice
                     else -> null

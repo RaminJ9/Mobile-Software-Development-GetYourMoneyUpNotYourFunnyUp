@@ -71,4 +71,17 @@ class MoneyAndReceiptTest {
         val without = ReceiptSplitter.shares(items, members, emptyMap(), emptySet(), "me")
         assertTrue(withMads.getValue("mads") > without.getValue("mads"))
     }
+
+    @Test
+    fun aTypedNegativeLine_isSharedLikeADiscount_soNoShareGoesBelowZero() {
+        // Jonas had nothing but is ticked on a "-50" typed on a normal line. Split per person, that would
+        // give him -50 kr; it is a discount for the whole receipt instead.
+        val items = listOf(ReceiptItem(1, "Pizza", "100,00"), ReceiptItem(2, "Bread", "200,00"), ReceiptItem(3, "Coupon", "-50,00"))
+        val who = mapOf(1 to listOf("ida"), 2 to listOf("me", "mads"), 3 to listOf("jonas"))
+        val shares = ReceiptSplitter.shares(items, members, who, emptySet(), "me")
+        assertTrue(items[2].sharedByShare)
+        assertEquals(25_000L, shares.values.sum())
+        assertTrue("no negative share: $shares", shares.values.all { it >= 0 })
+        assertEquals(0L, shares.getValue("jonas"))
+    }
 }

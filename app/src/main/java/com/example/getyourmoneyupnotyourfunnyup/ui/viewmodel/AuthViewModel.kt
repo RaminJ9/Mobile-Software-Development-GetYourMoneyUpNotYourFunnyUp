@@ -1,102 +1,163 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
+import androidx.lifecycle.viewModelScope
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthSessionSource
 import com.example.getyourmoneyupnotyourfunnyup.model.User
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-enum class AuthMode { Login, Register }
+enum class AuthForm { Login, Register }
 
-@Immutable
-data class AuthUiState(
-    val mode: AuthMode = AuthMode.Login,
-    val fullName: String = "",
+data class AuthFields(
+    val form: AuthForm = AuthForm.Login,
+    val displayName: String = "",
     val email: String = "",
-    val phone: String = "",
     val password: String = "",
-    val passwordVisible: Boolean = false,
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null,
-    val infoMessage: String? = null,
-    /** Set once sign-in succeeds; the screen hands it to the session and calls [AuthViewModel.onAuthenticatedHandled]. */
-    val authenticatedUser: User? = null,
-    /** Phone number typed during registration, passed on to the profile. */
-    val registeredPhone: String? = null,
-) {
-    val canSubmit: Boolean
-        get() = !isLoading && email.isNotBlank() && password.isNotBlank() &&
-            (mode == AuthMode.Login || fullName.isNotBlank())
+    val phoneNumber: String = ""
+)
+
+sealed interface AuthUiState {
+    data object Restoring : AuthUiState
+    data class SignedOut(
+        val fields: AuthFields = AuthFields(),
+        val isLoading: Boolean = false,
+        val errorMessage: String? = null,
+        val infoMessage: String? = null
+    ) : AuthUiState
+    data class SignedIn(val user: User, val statusMessage: String = "") : AuthUiState
 }
 
-sealed interface AuthAction {
-    data class NameChanged(val value: String) : AuthAction
-    data class EmailChanged(val value: String) : AuthAction
-    data class PhoneChanged(val value: String) : AuthAction
-    data class PasswordChanged(val value: String) : AuthAction
-    data object TogglePasswordVisibility : AuthAction
-    data object Submit : AuthAction
-    data object ForgotPassword : AuthAction
-}
+/** Owns the S1/S2 session flow. Credentials are kept in memory, never saved state. */
+class AuthViewModel(private val source: AuthSessionSource) : ViewModel() {
+    private val mutableState = MutableStateFlow<AuthUiState>(AuthUiState.Restoring)
+    val state = mutableState.asStateFlow()
+    private var generation = 0L
+    private var userJob: Job? = null
 
-/** S1 Login / S2 Registration, backed by Firebase Auth through [AuthRepository]. */
-class AuthViewModel(
-    private val authRepository: AuthRepository,
-    mode: AuthMode,
-) : ViewModel() {
-
-    private val state = MutableStateFlow(AuthUiState(mode = mode))
-    val uiState: StateFlow<AuthUiState> = state.asStateFlow()
-
-    fun onAction(action: AuthAction) {
-        when (action) {
-            is AuthAction.NameChanged -> state.update { it.copy(fullName = action.value, errorMessage = null) }
-            is AuthAction.EmailChanged -> state.update { it.copy(email = action.value, errorMessage = null, infoMessage = null) }
-            is AuthAction.PhoneChanged -> state.update { it.copy(phone = action.value) }
-            is AuthAction.PasswordChanged -> state.update { it.copy(password = action.value, errorMessage = null) }
-            AuthAction.TogglePasswordVisibility -> state.update { it.copy(passwordVisible = !it.passwordVisible) }
-            AuthAction.Submit -> submit()
-            AuthAction.ForgotPassword -> forgotPassword()
-        }
-    }
-
-    fun onAuthenticatedHandled() = state.update { it.copy(authenticatedUser = null) }
-
-    private fun submit() {
-        val current = state.value
-        if (!current.canSubmit) return
-        state.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
-        val onResult: (Result<User>) -> Unit = { result ->
-            result
-                .onSuccess { user ->
-                    state.update {
-                        it.copy(isLoading = false, authenticatedUser = user, registeredPhone = it.phone.ifBlank { null })
-                    }
-                }
-                .onFailure { error ->
-                    state.update { it.copy(isLoading = false, errorMessage = error.localizedMessage ?: "Something went wrong") }
-                }
-        }
-        when (current.mode) {
-            AuthMode.Login -> authRepository.loginUser(current.email, current.password, onResult)
-            AuthMode.Register -> authRepository.registerUser(current.fullName, current.email, current.password, onResult)
-        }
-    }
-
-    private fun forgotPassword() {
-        val email = state.value.email.trim()
-        if (email.isEmpty()) {
-            state.update { it.copy(errorMessage = "Type your email first, then tap “Forgot password?” again.") }
-            return
-        }
-        authRepository.sendPasswordReset(email) { result ->
-            state.update {
-                if (result.isSuccess) it.copy(infoMessage = "We sent a reset link to $email.", errorMessage = null)
-                else it.copy(errorMessage = result.exceptionOrNull()?.localizedMessage ?: "Couldn't send the reset email")
+    init {
+        val uid = source.currentUid
+        if (uid == null) {
+            mutableState.value = AuthUiState.SignedOut()
+        } else {
+            val request = ++generation
+            source.restore(uid, source.currentEmail.orEmpty()) { result ->
+                finishAuthentication(request, result, AuthFields(), "Loaded user")
             }
         }
+    }
+
+    fun setEmail(value: String) = edit { copy(email = value) }
+    fun setPhoneNumber(value: String) = edit { copy(phoneNumber = value) }
+    fun setPassword(value: String) = edit { copy(password = value) }
+    fun setDisplayName(value: String) = edit { copy(displayName = value) }
+    fun showRegister() = edit { copy(form = AuthForm.Register, password = "") }
+    fun showLogin() = edit { copy(form = AuthForm.Login, password = "") }
+
+    private fun edit(transform: AuthFields.() -> AuthFields) {
+        val current = state.value as? AuthUiState.SignedOut ?: return
+        if (!current.isLoading) mutableState.value = current.copy(fields = current.fields.transform(), errorMessage = null, infoMessage = null)
+    }
+
+    fun submit() {
+        val current = state.value as? AuthUiState.SignedOut ?: return
+        if (current.isLoading) return
+        val fields = current.fields
+        val valid = fields.email.isNotBlank() && fields.password.isNotBlank() &&
+            (fields.form == AuthForm.Login || (fields.displayName.isNotBlank() && fields.password.length >= 6))
+        if (!valid) {
+            mutableState.value = current.copy(errorMessage = "Enter the required account details.")
+            return
+        }
+        mutableState.value = current.copy(isLoading = true, errorMessage = null, infoMessage = null)
+        val request = ++generation
+        if (fields.form == AuthForm.Register) {
+            source.register(fields.displayName, fields.email, fields.password, fields.phoneNumber.trim().ifEmpty { null }) {
+                finishAuthentication(request, it, fields, "Created user")
+            }
+        } else {
+            source.login(fields.email, fields.password) {
+                finishAuthentication(request, it, fields, "Fetched user")
+            }
+        }
+    }
+
+    fun forgotPassword() {
+        val current = state.value as? AuthUiState.SignedOut ?: return
+        if (current.isLoading) return
+        val email = current.fields.email.trim()
+        if (email.isBlank()) {
+            mutableState.value = current.copy(errorMessage = "Enter your email address first.", infoMessage = null)
+            return
+        }
+        val request = ++generation
+        mutableState.value = current.copy(isLoading = true, errorMessage = null, infoMessage = null)
+        source.resetPassword(email) { result ->
+            viewModelScope.launch {
+                if (request != generation) return@launch
+                mutableState.value = current.copy(
+                    isLoading = false,
+                    infoMessage = if (result.isSuccess) "If an account exists for $email, a password reset link will be sent." else null,
+                    errorMessage = result.exceptionOrNull()?.localizedMessage
+                )
+            }
+        }
+    }
+
+    private fun finishAuthentication(request: Long, result: Result<User>, fields: AuthFields, message: String) {
+        viewModelScope.launch {
+            if (request != generation) return@launch
+            result.fold(
+                onSuccess = { user ->
+                    mutableState.value = AuthUiState.SignedIn(user, "$message from /users/${user.id}")
+                    observeUser(user, request)
+                },
+                onFailure = { error ->
+                    mutableState.value = AuthUiState.SignedOut(
+                        fields = fields.copy(password = ""),
+                        errorMessage = error.localizedMessage ?: "Could not sign in. Please try again."
+                    )
+                }
+            )
+        }
+    }
+
+    private fun observeUser(user: User, request: Long) {
+        userJob?.cancel()
+        userJob = viewModelScope.launch {
+            try {
+                source.observeUser(user) { message ->
+                    viewModelScope.launch {
+                        val current = state.value as? AuthUiState.SignedIn
+                        if (generation == request && current != null) {
+                            mutableState.value = current.copy(statusMessage = "Profile update failed: $message")
+                        }
+                    }
+                }.collect { updated ->
+                    val current = state.value as? AuthUiState.SignedIn
+                    if (generation == request && current?.user?.id == updated.id) {
+                        mutableState.value = current.copy(user = updated)
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val current = state.value as? AuthUiState.SignedIn
+                if (generation == request && current != null) {
+                    mutableState.value = current.copy(statusMessage = "Profile update failed: ${error.localizedMessage ?: "Try again later"}")
+                }
+            }
+        }
+    }
+
+    fun logout() {
+        ++generation
+        userJob?.cancel()
+        userJob = null
+        source.signOut()
+        mutableState.value = AuthUiState.SignedOut()
     }
 }
