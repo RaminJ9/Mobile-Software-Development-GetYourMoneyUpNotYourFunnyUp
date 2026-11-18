@@ -41,7 +41,6 @@ class InMemoryLedgerRepositoryTest {
     private fun draft(groupId: String = "pad") = ExpenseDraft(
         groupId = groupId, title = "Court booking", payerId = DemoLedger.ME, amountCents = 40_000,
         shares = mapOf(DemoLedger.ME to 10_000L, "jonas" to 10_000L, "mads" to 10_000L, "emil" to 10_000L),
-        hasReceipt = false,
     )
 
     @Test

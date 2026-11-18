@@ -85,7 +85,8 @@ data class ExpenseSheetUi(
     val date: String,
     val amountCents: Long,
     val syncStatus: SyncStatus,
-    val hasReceipt: Boolean,
+    /** The receipt photo on the phone, null when the expense was typed in. */
+    val receiptPhoto: String?,
     val splits: List<SplitRowUi>,
     val canRemove: Boolean,
     val removeConfirm: Boolean,
@@ -283,7 +284,7 @@ fun buildGroupUiState(
         ExpenseSheetUi(
             id = e.id, title = e.title, payerName = snapshot.displayName(e.payerId),
             date = DateLabels.relativeDay(e.createdAt, now), amountCents = e.amountCents, syncStatus = e.syncStatus,
-            hasReceipt = e.receiptLocalUri != null,
+            receiptPhoto = e.receiptLocalUri,
             splits = e.splits.map { split ->
                 SplitRowUi(snapshot.displayName(split.userId), snapshot.person(split.userId).avatar(me), split.amountOwedCents, split.userId == me)
             },

@@ -172,8 +172,8 @@ class InMemoryLedgerRepository(
         val expense = Expense(
             id = id, groupId = draft.groupId, title = draft.title.trim().ifBlank { "Expense" },
             amountCents = draft.amountCents, currency = DemoLedger.CURRENCY, payerId = draft.payerId,
-            category = if (draft.hasReceipt) "Receipt" else "General",
-            receiptLocalUri = if (draft.hasReceipt) "demo://receipt/$id" else null,
+            category = if (draft.receiptUri != null) "Receipt" else "General",
+            receiptLocalUri = draft.receiptUri,
             splits = draft.shares.filterValues { it != 0L }.map { (userId, owed) ->
                 ExpenseSplit("$id-$userId", id, userId, owed)
             },

@@ -3,7 +3,8 @@ package com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.getyourmoneyupnotyourfunnyup.data.demo.DemoLedger
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptPhotos
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptScanner
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.ExpenseDraft
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.model.DietRule
@@ -16,7 +17,11 @@ import com.example.getyourmoneyupnotyourfunnyup.model.ReceiptSplitter
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.lastActivityAt
 import com.example.getyourmoneyupnotyourfunnyup.model.myGroups
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -86,15 +91,19 @@ data class SavedUi(
 )
 
 @Immutable
-data class ReceiptPreviewUi(val merchant: String, val subtitle: String, val lines: List<Pair<String, String>>, val total: String)
-
-@Immutable
 data class ScanUiState(
     val step: ScanStep,
     val manual: Boolean,
     val flashOn: Boolean,
     val permissionDenied: Boolean,
-    val receipt: ReceiptPreviewUi,
+    /** The receipt photo on the phone (file URI), null for typed-in expenses. */
+    val photo: String?,
+    /** Lines found so far while reading, null until the photo has been read. */
+    val foundLines: Int?,
+    /** The photo couldn't be read; the items start empty for the user to type in. */
+    val readFailed: Boolean,
+    /** Shown on the camera when taking the photo failed. */
+    val cameraMessage: String?,
     val group: ScanGroupUi?,
     val groups: List<ScanGroupUi>,
     val groupPickerOpen: Boolean,
@@ -122,7 +131,11 @@ sealed interface ScanAction {
     data class PermissionChecked(val granted: Boolean) : ScanAction
     data object CameraDenied : ScanAction
     data object OpenCamera : ScanAction
-    data object Shoot : ScanAction
+    /** The camera saved a photo ([photo] is its file URI). */
+    data class PhotoTaken(val photo: String) : ScanAction
+    /** A photo was picked from the gallery ([photo] is its content URI). */
+    data class PhotoPicked(val photo: String) : ScanAction
+    data object CaptureFailed : ScanAction
     data object TypeManually : ScanAction
     data object ToggleFlash : ScanAction
     data object BackToReview : ScanAction
@@ -152,8 +165,13 @@ data class ScanLocalState(
     val groupPickerOpen: Boolean = false,
     val payerId: String? = null,
     val payerPickerOpen: Boolean = false,
-    val title: String = DemoLedger.RECEIPT_MERCHANT,
-    val items: List<ReceiptItem> = DemoLedger.receiptItems,
+    val title: String = "",
+    val items: List<ReceiptItem> = emptyList(),
+    val photo: String? = null,
+    val foundLines: Int? = null,
+    val readFailed: Boolean = false,
+    val receiptTotalCents: Long? = null,
+    val cameraMessage: String? = null,
     val excluded: Set<String> = emptySet(),
     val overrides: Map<Int, List<String>> = emptyMap(),
     val savedExpenseId: String? = null,
@@ -247,20 +265,15 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
         )
     }
 
-    val stamp = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.UK).format(Date(now))
     return ScanUiState(
         step = local.step,
         manual = local.manual,
         flashOn = local.flashOn,
         permissionDenied = local.permissionDenied,
-        receipt = ReceiptPreviewUi(
-            merchant = DemoLedger.RECEIPT_MERCHANT,
-            subtitle = "${DemoLedger.RECEIPT_STORE} · $stamp",
-            lines = DemoLedger.receiptItems.map {
-                it.name.uppercase() to (if (it.lowConfidence) DemoLedger.RECEIPT_CORRECT_LOW_PRICE else MoneyFormat.signed(it.priceCents))
-            },
-            total = MoneyFormat.kr(DemoLedger.RECEIPT_TOTAL_CENTS),
-        ),
+        photo = local.photo,
+        foundLines = local.foundLines,
+        readFailed = local.readFailed,
+        cameraMessage = local.cameraMessage,
         group = group?.let { ScanGroupUi(it.id, it.name, AvatarUi(it.name.take(1).uppercase(), it.colorIndex)) },
         groups = myGroups.map { ScanGroupUi(it.id, it.name, AvatarUi(it.name.take(1).uppercase(), it.colorIndex)) },
         groupPickerOpen = local.groupPickerOpen,
@@ -283,7 +296,7 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
             )
         },
         totalCents = total,
-        receiptTotalCents = if (local.manual) null else DemoLedger.RECEIPT_TOTAL_CENTS,
+        receiptTotalCents = if (local.manual) null else local.receiptTotalCents,
         people = members.map {
             SplitPersonUi(it.id, snapshot.nameFor(it.id), it.avatarFor(me), it.id !in local.excluded, canToggle = it.id != me)
         },
@@ -305,6 +318,8 @@ fun buildScanUiState(snapshot: LedgerSnapshot, online: Boolean, local: ScanLocal
 class ScanViewModel(
     private val ledger: LedgerRepository,
     initialGroupId: String?,
+    private val scanner: ReceiptScanner,
+    private val photos: ReceiptPhotos,
 ) : ViewModel() {
 
     private val local = MutableStateFlow(ScanLocalState(groupId = initialGroupId))
@@ -325,8 +340,14 @@ class ScanViewModel(
                 if (it.step == ScanStep.Starting) it.copy(step = if (action.granted) ScanStep.Camera else ScanStep.Permission) else it
             }
             ScanAction.CameraDenied -> local.update { it.copy(permissionDenied = true) }
-            ScanAction.OpenCamera -> local.update { it.copy(step = ScanStep.Camera, permissionDenied = false) }
-            ScanAction.Shoot -> startReading()
+            ScanAction.OpenCamera -> {
+                readingJob?.cancel()
+                discardUnsavedPhoto()
+                local.update { it.copy(step = ScanStep.Camera, permissionDenied = false, cameraMessage = null) }
+            }
+            is ScanAction.PhotoTaken -> read(action.photo)
+            is ScanAction.PhotoPicked -> read(action.photo)
+            ScanAction.CaptureFailed -> local.update { it.copy(cameraMessage = "Couldn't take the photo. Try again.") }
             ScanAction.TypeManually -> local.update {
                 it.copy(
                     step = ScanStep.Review, manual = true, title = "",
@@ -356,26 +377,66 @@ class ScanViewModel(
             }
             is ScanAction.ToggleItemPerson -> toggleItemPerson(action.itemId, action.personId)
             ScanAction.Save -> save()
-            ScanAction.ScanAnother -> local.update {
-                ScanLocalState(step = ScanStep.Camera, groupId = it.groupId)
-            }
+            // The saved photo now belongs to the expense, so it is kept.
+            ScanAction.ScanAnother -> local.update { ScanLocalState(step = ScanStep.Camera, groupId = it.groupId) }
             is ScanAction.ShowReceipt -> local.update { it.copy(receiptViewerOpen = action.show) }
         }
     }
 
-    private fun startReading() {
+    /**
+     * Saves [source] as the receipt photo and reads it on the phone. Whatever happens the user ends up on
+     * Check items: with the items that were found, or, if the photo couldn't be read, with one empty row
+     * to type into (the photo is still attached).
+     */
+    private fun read(source: String) {
+        readingJob?.cancel()
+        discardUnsavedPhoto()
         local.update {
             it.copy(
-                step = ScanStep.Reading, manual = false, title = DemoLedger.RECEIPT_MERCHANT,
-                items = DemoLedger.receiptItems, overrides = emptyMap(), excluded = emptySet(),
+                step = ScanStep.Reading, manual = false, cameraMessage = null, readFailed = false, foundLines = null,
+                photo = null, overrides = emptyMap(), excluded = emptySet(),
             )
         }
-        readingJob?.cancel()
         readingJob = viewModelScope.launch {
-            delay(READING_MS)
-            local.update { if (it.step == ScanStep.Reading) it.copy(step = ScanStep.Review) else it }
+            // Saving isn't interrupted, so a finished file is always recorded and can be cleaned up later.
+            val photo = withContext(NonCancellable) { runCatching { photos.save(source) }.getOrNull() }
+            if (photo == null) {
+                local.update { it.copy(step = ScanStep.Camera, cameraMessage = "Couldn't open that photo. Try another one.") }
+                return@launch
+            }
+            local.update { it.copy(photo = photo) }
+            ensureActive()
+            val scanned = try {
+                scanner.read(photo)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            }
+            val items = scanned?.items.orEmpty()
+            local.update { it.copy(foundLines = items.size) }
+            delay(RESULT_PAUSE_MS) // let the "Found N lines → Checking the total" checklist finish
+            local.update {
+                it.copy(
+                    step = ScanStep.Review,
+                    title = scanned?.merchant ?: "Receipt",
+                    items = items.ifEmpty { listOf(ReceiptItem(1, "", "")) },
+                    receiptTotalCents = scanned?.totalCents?.takeIf { items.isNotEmpty() },
+                    readFailed = items.isEmpty(),
+                )
+            }
         }
     }
+
+    /** A photo that never made it into a saved expense is deleted from the phone (and forgotten). */
+    private fun discardUnsavedPhoto() {
+        val state = local.value
+        if (state.savedExpenseId != null) return
+        state.photo?.let(photos::delete)
+        local.update { it.copy(photo = null) }
+    }
+
+    override fun onCleared() = discardUnsavedPhoto()
 
     private fun updateItem(id: Int, transform: (ReceiptItem) -> ReceiptItem) = local.update { state ->
         state.copy(items = state.items.map { if (it.id == id) transform(it) else it })
@@ -401,7 +462,7 @@ class ScanViewModel(
         val members = snapshot.group(group.id)?.members?.map { snapshot.person(it.userId) }.orEmpty()
         val payerId = ui.payer?.id ?: snapshot.currentUserId
         val shares = ReceiptSplitter.shares(state.items, members, state.overrides, state.excluded, payerId)
-        val title = state.title.trim().ifEmpty { if (state.manual) "Expense" else DemoLedger.RECEIPT_MERCHANT }
+        val title = state.title.trim().ifEmpty { if (state.manual) "Expense" else "Receipt" }
         val id = ledger.addExpense(
             ExpenseDraft(
                 groupId = group.id,
@@ -409,14 +470,15 @@ class ScanViewModel(
                 payerId = payerId,
                 amountCents = ui.totalCents,
                 shares = shares,
-                hasReceipt = !state.manual,
+                receiptUri = state.photo.takeUnless { state.manual },
             ),
         )
         local.update { it.copy(step = ScanStep.Saved, savedExpenseId = id, savedShares = shares, title = title) }
     }
 
     companion object {
-        const val READING_MS = 2_200L
+        /** How long "Found N lines" stays up before Check items opens. */
+        const val RESULT_PAUSE_MS = 900L
 
         /** "Netto · Tue 3 Nov" */
         fun receiptHeading(title: String, now: Long): String =

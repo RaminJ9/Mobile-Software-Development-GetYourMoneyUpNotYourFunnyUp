@@ -11,6 +11,7 @@ AI failures that were observed and how they were caught.
 | 16-11-2026 | Claude Code (agent) | Compare Mohammed's Home/Activity (#1) with ours, then use his ("is his okay to use?" → "use his screens … follow his good parts like testing and safety checks") | Both versions run side by side on the emulator; 116 unit tests; Mohammed's 10 compose UI tests on the emulator; lint compared with `main` (no new issues) | Use Mohammed's screens, fed from our ledger; small HiFi fixes allowed, no large changes to his code |
 | 17-11-2026 | Claude Code (agent) | Keep Bashir's group screens (#2), build ours to match, open the PR ("keep his group screen and build ours to match it, then create the pull request") | 151 unit tests (12 new for the groups adapter); lint 0 errors; clean merge into `main` | Our shell and group page stay; his Groups, Create group and Members screens are used, fed from our ledger |
 | 17-11-2026 | Claude Code (agent) | Finish everything that doesn't need teammates (device checks, this dossier) | All instrumented tests and a manual emulator pass of the group screens (see PR #3) | Human review of PR #3 by the teammates whose code changed |
+| 18-11-2026 | Claude Code (agent), plan mode first | Real receipt scanning ("We need to add actual scanning of the receipt") on branch `feature/receipt-scanning`: CameraX camera, ML Kit on-device text recognition (bundled, offline), our own Danish receipt parser | 165 unit tests (7 parser, 7 scan ViewModel); 3 instrumented tests reading a drawn receipt with the real ML Kit model; camera, reading, "couldn't read" and retake checked on the emulator; lint 0 errors | Plan approved by the user; separate PR after #3 |
 
 ## How the AI was used
 
@@ -43,5 +44,17 @@ AI failures that were observed and how they were caught.
    unused imports and components. Each pass ended with a search for unused code, which removed them.
 7. **Data mapped to the wrong field.** A phone number was first put in a contact's email field; caught
    during review and covered by a test.
+
+8. **Receipt scanning (18-11-2026).** Five more mistakes were caught before commit:
+   - **Compose upgraded by accident.** Coil 3 silently upgraded Compose for the whole app; found from new
+     deprecation warnings. Coil was removed.
+   - **No photo could ever be saved.** The photo store's size check treated Android's intentional `null`
+     as failure. Found by the on-device test.
+   - **Crash on Android 7.** The parser used named regex groups, which need Android 8; found by lint.
+   - **State pointing at a deleted file.** Discarding a photo deleted the file but left the screen state
+     pointing at it; found by a unit test.
+   - **A test JUnit refused to run.** It returned a value; found on the device.
+
+   The plan's "+4 MB" size estimate was also wrong. The real cost is about +12 MB per phone.
 
 The team must still review PR #3; AI-assisted code reaches `main` only through a human-reviewed PR.

@@ -30,7 +30,7 @@ object DemoLedger {
 
     fun create(now: Long): LedgerSnapshot = Builder(now).build()
 
-    /** Lines read from the sample Netto receipt in the scan flow. */
+    /** A sample scanned Netto receipt, used by the scan screen previews and tests. */
     val receiptItems: List<ReceiptItem> = listOf(
         ReceiptItem(1, "Tuborg Grøn 6-pak", "59,95", isAlcohol = true),
         ReceiptItem(2, "Pant A ×6", "6,00", kind = ReceiptItemKind.DEPOSIT),
@@ -46,7 +46,6 @@ object DemoLedger {
     /** What the printed receipt says (the misread Parmigiano price makes the scanned lines not match). */
     const val RECEIPT_TOTAL_CENTS = 26_090L
     const val RECEIPT_MERCHANT = "Netto"
-    const val RECEIPT_STORE = "Sanderum"
 
     /** The price actually printed for the item the scanner misread. */
     const val RECEIPT_CORRECT_LOW_PRICE = "32,95"

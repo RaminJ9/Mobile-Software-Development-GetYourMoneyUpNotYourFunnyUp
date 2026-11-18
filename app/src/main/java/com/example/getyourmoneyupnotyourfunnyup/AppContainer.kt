@@ -3,6 +3,9 @@ package com.example.getyourmoneyupnotyourfunnyup
 import android.app.Application
 import android.content.Context
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.MlKitReceiptScanner
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptPhotoStore
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptScanner
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.InMemoryLedgerRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LedgerRepository
@@ -45,6 +48,10 @@ class AppContainer(context: Context) {
 
     /** Feeds the Groups, Create group and Members screens from [ledgerRepository]. */
     val groupsSource: LedgerGroupsSource by lazy { LedgerGroupsSource(ledgerRepository) }
+
+    /** On-device receipt reading (no internet needed) and where the photos are kept. */
+    val receiptScanner: ReceiptScanner by lazy { MlKitReceiptScanner(appContext) }
+    val receiptPhotos: ReceiptPhotoStore by lazy { ReceiptPhotoStore(appContext) }
 }
 
 class GetYourMoneyUpApplication : Application() {

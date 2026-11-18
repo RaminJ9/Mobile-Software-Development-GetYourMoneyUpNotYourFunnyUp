@@ -149,7 +149,7 @@ class LedgerDashboardSourceTest {
         val source = LedgerDashboardSource(ledger)
         val stale = homeData(ledger.snapshot.value, now).payment("ski")
         // Mads adds an expense, so what the user owes changes after the screen was drawn.
-        ledger.addExpense(ExpenseDraft("ski", "Pizza", "mads", 6_000, mapOf("mads" to 3_000, me to 3_000), hasReceipt = false))
+        ledger.addExpense(ExpenseDraft("ski", "Pizza", "mads", 6_000, mapOf("mads" to 3_000, me to 3_000)))
         val before = ledger.snapshot.value.settlements.size
 
         assertFailsWith("This balance changed") { source.recordSettlement(stale) }

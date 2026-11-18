@@ -22,9 +22,6 @@ object AppExtraColors {
     val AmberInputTint = Color(0xFFFFFBF0) // Text field showing a "not found" warning
     val StarOutline = Color(0xFFA9B3AD) // Un-starred favourite
     val SurfaceFaint = Color(0xFFF7F9F8) // Receipt item rows in "Check items"
-    val ReceiptInk = Color(0xFF2A2F2C)
-    val ReceiptMuted = Color(0xFF6B716D)
-    val ReceiptRule = Color(0xFF9AA19C)
     val Scrim = Color(0x6B17201B) // Behind bottom sheets (Ink900 at 42%)
 }
 

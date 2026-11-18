@@ -36,7 +36,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ConfirmButtons
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumb
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumbnail
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.SyncPill
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
@@ -98,13 +98,13 @@ fun ExpenseDetailsSheet(sheet: ExpenseSheetUi, onAction: (GroupAction) -> Unit) 
                 )
                 SyncPill(sheet.syncStatus, Modifier.padding(bottom = 6.dp))
             }
-            if (sheet.hasReceipt) {
+            sheet.receiptPhoto?.let { photo ->
                 Row(
                     Modifier.fillMaxWidth().cardOutline(corner = 16.dp, color = AppColors.Line).padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    ReceiptThumb()
+                    ReceiptThumbnail(photo)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Receipt photo", style = AppTypography.ItemTitle, color = AppColors.Ink900)
                         Text("Saved with the expense", style = AppTypography.Caption, color = AppColors.Ink600)

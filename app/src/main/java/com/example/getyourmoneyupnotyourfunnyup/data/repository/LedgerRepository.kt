@@ -7,14 +7,17 @@ import com.example.getyourmoneyupnotyourfunnyup.model.Person
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Everything needed to save a new expense. [shares] must add up to [amountCents]. */
+/**
+ * Everything needed to save a new expense. [shares] must add up to [amountCents]. [receiptUri] is the
+ * receipt photo on the phone (a file URI), or null when the expense was typed in.
+ */
 data class ExpenseDraft(
     val groupId: String,
     val title: String,
     val payerId: String,
     val amountCents: Long,
     val shares: Map<String, Long>,
-    val hasReceipt: Boolean
+    val receiptUri: String? = null
 )
 
 /** Emitted when queued changes reach the backend, so the UI can tell the user. */

@@ -2,10 +2,19 @@ package com.example.getyourmoneyupnotyourfunnyup.ui.screens.scan
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview as CameraPreviewUseCase
+import androidx.camera.core.SurfaceRequest
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.lifecycle.awaitInstance
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,8 +85,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.getyourmoneyupnotyourfunnyup.appContainer
 import com.example.getyourmoneyupnotyourfunnyup.data.demo.DemoLedger
 import com.example.getyourmoneyupnotyourfunnyup.model.MoneyFormat
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppButton
@@ -85,8 +98,8 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIconSpec
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppIcons
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonSize
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.ButtonTone
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.DashedAddButton
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.DarkStatusBarBackground
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.DashedAddButton
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.FillingScrollColumn
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.GroupAvatar
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.LabeledTextField
@@ -94,12 +107,13 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.Notice
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.NoticeTone
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.OneLine
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.PaletteAvatar
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptLine
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptPaper
-import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumb
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptPhoto
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.ReceiptThumbnail
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.ScanLine
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.Spinner
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.cardOutline
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.dashedBorder
+import com.example.getyourmoneyupnotyourfunnyup.ui.components.isReceiptPhoto
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppExtraColors
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppShapes
@@ -118,12 +132,12 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ScanViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.SplitItemUi
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.appViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.buildScanUiState
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 
 /**
- * Add expense flow. The camera viewfinder is a stand-in (it shows the sample receipt) until CameraX
- * and on-device text recognition are added; permissions, the photo picker, editing, splitting and
- * saving are real.
+ * Add expense flow: the camera (CameraX) or a photo from the gallery, read on the phone (ML Kit, no
+ * internet needed), then check items, who had what, and save.
  */
 @Composable
 fun ScanRoute(
@@ -131,15 +145,23 @@ fun ScanRoute(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val viewModel = appViewModel(key = "scan:$initialGroupId") { ScanViewModel(it.ledgerRepository, initialGroupId) }
+    val viewModel = appViewModel(key = "scan:$initialGroupId") {
+        ScanViewModel(it.ledgerRepository, initialGroupId, it.receiptScanner, it.receiptPhotos)
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val photos = context.appContainer.receiptPhotos
+    val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+    var capturing by remember { mutableStateOf(false) }
+    LaunchedEffect(state.flashOn) {
+        imageCapture.flashMode = if (state.flashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+    }
 
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.onAction(if (granted) ScanAction.OpenCamera else ScanAction.CameraDenied)
     }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) viewModel.onAction(ScanAction.Shoot)
+        if (uri != null) viewModel.onAction(ScanAction.PhotoPicked(uri.toString()))
     }
     LaunchedEffect(Unit) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -156,8 +178,66 @@ fun ScanRoute(
         onClose = onClose,
         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
         onPickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onShoot = {
+            if (!capturing) {
+                capturing = true
+                val file = photos.newCaptureFile()
+                imageCapture.takePicture(
+                    ImageCapture.OutputFileOptions.Builder(file).build(),
+                    ContextCompat.getMainExecutor(context),
+                    object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                            capturing = false
+                            viewModel.onAction(ScanAction.PhotoTaken(Uri.fromFile(file).toString()))
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            capturing = false
+                            viewModel.onAction(ScanAction.CaptureFailed)
+                        }
+                    },
+                )
+            }
+        },
+        viewfinder = { CameraViewfinder(imageCapture, it) },
         modifier = modifier,
     )
+}
+
+/** Live CameraX preview bound to the screen's lifecycle, sharing [imageCapture] with the shutter. */
+@Composable
+private fun CameraViewfinder(imageCapture: ImageCapture, modifier: Modifier) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var surfaceRequest by remember { mutableStateOf<SurfaceRequest?>(null) }
+    var unavailable by remember { mutableStateOf(false) }
+    val preview = remember { CameraPreviewUseCase.Builder().build().apply { setSurfaceProvider { surfaceRequest = it } } }
+    LaunchedEffect(lifecycleOwner) {
+        val provider = ProcessCameraProvider.awaitInstance(context)
+        try {
+            provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+        } catch (_: IllegalArgumentException) {
+            unavailable = true // no back camera on this device
+            return@LaunchedEffect
+        }
+        try {
+            awaitCancellation()
+        } finally {
+            provider.unbind(preview, imageCapture)
+        }
+    }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        surfaceRequest?.let { CameraXViewfinder(surfaceRequest = it, modifier = Modifier.fillMaxSize()) }
+        if (unavailable) {
+            Text(
+                "No camera available. Choose a photo or type it in.",
+                Modifier.padding(32.dp),
+                style = jakarta(15, FontWeight.SemiBold),
+                color = AppColors.White,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
 }
 
 @Composable
@@ -167,28 +247,34 @@ fun ScanScreen(
     onClose: () -> Unit,
     onRequestCamera: () -> Unit,
     onPickPhoto: () -> Unit,
+    onShoot: () -> Unit,
+    viewfinder: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier.fillMaxSize().background(AppColors.White)) {
         when (state.step) {
             ScanStep.Starting -> Unit
             ScanStep.Permission -> PermissionStep(state.permissionDenied, onRequestCamera, onAction, onClose)
-            ScanStep.Camera, ScanStep.Reading -> CameraStep(state, onAction, onClose, onPickPhoto)
+            ScanStep.Camera, ScanStep.Reading -> CameraStep(state, onAction, onClose, onPickPhoto, onShoot, viewfinder)
             ScanStep.Review -> ReviewStep(state, onAction, onClose)
             ScanStep.Split -> SplitStep(state, onAction)
             ScanStep.Saved -> SavedStep(state, onAction, onClose)
         }
     }
     if (state.groupPickerOpen) GroupPickerSheet(state, onAction)
-    if (state.receiptViewerOpen) {
-        Dialog(onDismissRequest = { onAction(ScanAction.ShowReceipt(false)) }) {
-            ReceiptPaper(
-                merchant = state.receipt.merchant,
-                subtitle = state.receipt.subtitle,
-                lines = state.receipt.lines.map { ReceiptLine(it.first, it.second) },
-                total = state.receipt.total,
-                tilted = false,
-                modifier = Modifier.clickable { onAction(ScanAction.ShowReceipt(false)) },
+    val photo = state.photo
+    if (state.receiptViewerOpen && photo != null) {
+        Dialog(
+            onDismissRequest = { onAction(ScanAction.ShowReceipt(false)) },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            ReceiptPhoto(
+                photo,
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onAction(ScanAction.ShowReceipt(false)) },
             )
         }
     }
@@ -287,7 +373,14 @@ private fun Bar(fraction: Float, height: Int, color: Color) {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-private fun CameraStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClose: () -> Unit, onPickPhoto: () -> Unit) {
+private fun CameraStep(
+    state: ScanUiState,
+    onAction: (ScanAction) -> Unit,
+    onClose: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onShoot: () -> Unit,
+    viewfinder: @Composable (Modifier) -> Unit,
+) {
     val reading = state.step == ScanStep.Reading
     Column(Modifier.fillMaxSize().background(AppColors.Camera)) {
         Row(
@@ -305,17 +398,23 @@ private fun CameraStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
             )
         }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ViewfinderCorners(Modifier.fillMaxSize().padding(start = 44.dp, end = 44.dp, top = 36.dp, bottom = 40.dp))
-            ReceiptPaper(
-                merchant = state.receipt.merchant,
-                subtitle = state.receipt.subtitle,
-                lines = state.receipt.lines.map { ReceiptLine(it.first, it.second) },
-                total = state.receipt.total,
-                scanning = reading,
-            )
+            val frame = Modifier.fillMaxSize().padding(start = 44.dp, end = 44.dp, top = 36.dp, bottom = 40.dp)
+            val photo = state.photo
+            if (reading) {
+                // The photo being read, under the sweeping scan line.
+                if (photo != null) {
+                    Box(frame) {
+                        ReceiptPhoto(photo, Modifier.fillMaxSize())
+                        ScanLine(Modifier.matchParentSize())
+                    }
+                }
+            } else {
+                viewfinder(Modifier.fillMaxSize())
+                ViewfinderCorners(frame)
+            }
         }
         if (reading) {
-            ReadingSheet()
+            ReadingSheet(state.foundLines)
         } else {
             Column(
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, bottom = 36.dp),
@@ -323,7 +422,7 @@ private fun CameraStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 Text(
-                    "Fit the whole receipt inside the frame",
+                    state.cameraMessage ?: "Fit the whole receipt inside the frame",
                     Modifier.background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
                     style = jakarta(14, FontWeight.SemiBold),
                     color = AppColors.White,
@@ -338,7 +437,7 @@ private fun CameraStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
                             .padding(9.dp)
                             .clip(CircleShape)
                             .background(AppColors.White)
-                            .clickable(role = Role.Button) { onAction(ScanAction.Shoot) }
+                            .clickable(role = Role.Button, onClick = onShoot)
                             .semantics { contentDescription = "Take photo" },
                     )
                     Spacer(Modifier.weight(1f))
@@ -407,12 +506,14 @@ private fun ViewfinderCorners(modifier: Modifier) {
 }
 
 @Composable
-private fun ReadingSheet() {
+private fun ReadingSheet(foundLines: Int?) {
+    // Finding the lines takes as long as the phone needs; the last two steps then tick off in turn.
     var progress by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (progress < 2) {
-            delay(ScanViewModel.READING_MS / 3)
-            progress++
+    LaunchedEffect(foundLines) {
+        if (foundLines == null) return@LaunchedEffect
+        for (step in 1..3) {
+            progress = step
+            delay(ScanViewModel.RESULT_PAUSE_MS / 3)
         }
     }
     Column(
@@ -428,7 +529,12 @@ private fun ReadingSheet() {
             Text("Reading your receipt…", style = jakarta(18, FontWeight.ExtraBold), color = AppColors.Ink900)
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf("Found ${DemoLedger.receiptItems.size} lines", "Reading prices", "Checking the total").forEachIndexed { index, label ->
+            val found = when (foundLines) {
+                null -> "Finding the lines"
+                1 -> "Found 1 line"
+                else -> "Found $foundLines lines"
+            }
+            listOf(found, "Reading prices", "Checking the total").forEachIndexed { index, label ->
                 ReadingLine(label, done = index < progress, active = index == progress)
             }
         }
@@ -516,17 +622,36 @@ private fun ReviewStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
                         )
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ReceiptThumb(width = 44.dp, height = 56.dp)
+                            ReceiptThumbnail(state.photo, width = 44.dp, height = 56.dp)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(ScanViewModel.receiptHeading(state.title, System.currentTimeMillis()), style = AppTypography.ItemTitle, color = AppColors.Ink900)
                                 Text("Receipt photo saved with the expense", style = AppTypography.Caption, color = AppColors.Ink600)
                             }
-                            Text(
-                                "View",
-                                Modifier.clickable(role = Role.Button) { onAction(ScanAction.ShowReceipt(true)) }.padding(12.dp),
-                                style = jakarta(14, FontWeight.Bold),
-                                color = AppColors.Green700,
-                            )
+                            if (isReceiptPhoto(state.photo)) {
+                                Text(
+                                    "View",
+                                    Modifier.clickable(role = Role.Button) { onAction(ScanAction.ShowReceipt(true)) }.padding(12.dp),
+                                    style = jakarta(14, FontWeight.Bold),
+                                    color = AppColors.Green700,
+                                )
+                            }
+                        }
+                        if (state.readFailed) {
+                            Notice(tone = NoticeTone.Warning, icon = AppIcons.Warning) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        "We couldn't read this receipt. Type the items in below, or retake the photo.",
+                                        style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp),
+                                        color = AppColors.Amber800,
+                                    )
+                                    Text(
+                                        "Retake photo",
+                                        Modifier.clickable(role = Role.Button) { onAction(ScanAction.OpenCamera) }.padding(vertical = 8.dp),
+                                        style = jakarta(14, FontWeight.Bold),
+                                        color = AppColors.Amber800,
+                                    )
+                                }
+                            }
                         }
                         state.receiptTotalCents?.let { receiptTotal ->
                             if (receiptTotal != state.totalCents) {
@@ -1016,26 +1141,39 @@ private fun preview(local: ScanLocalState): ScanUiState {
     return buildScanUiState(DemoLedger.create(now), true, local, now)
 }
 
+/** The sample receipt as if it had just been read. */
+private fun scanned(step: ScanStep) = ScanLocalState(
+    step = step, groupId = "kol", title = DemoLedger.RECEIPT_MERCHANT, items = DemoLedger.receiptItems,
+    receiptTotalCents = DemoLedger.RECEIPT_TOTAL_CENTS,
+)
+
+@Composable
+private fun PreviewScan(state: ScanUiState) {
+    GetYourMoneyUpNotYourFunnyUpTheme {
+        ScanScreen(state, {}, {}, {}, {}, {}, viewfinder = { Box(it.background(AppColors.Camera)) })
+    }
+}
+
 @Preview(name = "Scan – camera permission", showBackground = true, widthDp = 412, heightDp = 915)
 @Composable
 private fun PermissionPreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { ScanScreen(preview(ScanLocalState(step = ScanStep.Permission)), {}, {}, {}, {}) }
+    PreviewScan(preview(ScanLocalState(step = ScanStep.Permission)))
 }
 
 @Preview(name = "Scan – camera", showBackground = true, widthDp = 412, heightDp = 915)
 @Composable
 private fun CameraPreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { ScanScreen(preview(ScanLocalState(step = ScanStep.Camera)), {}, {}, {}, {}) }
+    PreviewScan(preview(ScanLocalState(step = ScanStep.Camera)))
 }
 
 @Preview(name = "Scan – check items", showBackground = true, widthDp = 412, heightDp = 915)
 @Composable
 private fun ReviewPreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { ScanScreen(preview(ScanLocalState(step = ScanStep.Review, groupId = "kol")), {}, {}, {}, {}) }
+    PreviewScan(preview(scanned(ScanStep.Review)))
 }
 
 @Preview(name = "Scan – who had what", showBackground = true, widthDp = 412, heightDp = 915)
 @Composable
 private fun SplitPreview() {
-    GetYourMoneyUpNotYourFunnyUpTheme { ScanScreen(preview(ScanLocalState(step = ScanStep.Split, groupId = "kol")), {}, {}, {}, {}) }
+    PreviewScan(preview(scanned(ScanStep.Split)))
 }
