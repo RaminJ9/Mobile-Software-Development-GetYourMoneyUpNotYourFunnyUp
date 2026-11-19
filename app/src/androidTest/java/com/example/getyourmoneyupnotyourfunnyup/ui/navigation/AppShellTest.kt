@@ -3,6 +3,9 @@ package com.example.getyourmoneyupnotyourfunnyup.ui.navigation
 import androidx.compose.runtime.mutableStateOf
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.*
+import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.After
 import androidx.compose.ui.test.*
@@ -26,6 +29,53 @@ class AppShellTest {
         compose.runOnIdle { visible.value = false }
         compose.waitForIdle()
         database.close()
+    }
+
+    private fun seedGroup(withExpense: Boolean) {
+        database.userDao.upsertUser(UserEntity("u", user.email, user.displayName))
+        database.userDao.upsertUser(UserEntity("friend", "ida@test", "Ida"))
+        database.groupDao.upsertGroupWithMembers(
+            GroupEntity("g", "Trip", currency = "DKK", createdBy = "u"),
+            listOf(GroupMemberEntity("g", "u"), GroupMemberEntity("g", "friend")))
+        if (withExpense) database.expenseDao.upsertExpenseWithSplits(
+            ExpenseEntity("e", "g", "Food", 10000, currency = "DKK", payerId = "friend", createdBy = "friend"),
+            listOf(ExpenseSplitEntity("s1", "e", "u", 5000), ExpenseSplitEntity("s2", "e", "friend", 5000)))
+    }
+    private fun openBalances() {
+        compose.onNodeWithContentDescription("Groups tab").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Trip").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Trip").performClick()
+        compose.onNodeWithText("Balances").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Member balances").fetchSemanticsNodes().isNotEmpty() }
+    }
+    @Test fun groupBalancesIsReachableWithNoExpensesAndBackReturnsToGroups() {
+        seedGroup(withExpense = false)
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            if (visible.value) AppShell(user, {}, database = database, currentAccountId = { user.id })
+        } }
+        openBalances()
+        compose.onNodeWithText("No expenses or completed repayments yet. Balances are zero.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("No payments needed. Everyone is settled.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithContentDescription("Groups tab").assertIsSelected()
+    }
+    @Test fun virtualPaymentCanBeMadeThroughGroupNavigationAndSurvivesReopening() {
+        seedGroup(withExpense = true)
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            if (visible.value) AppShell(user, {}, database = database, currentAccountId = { user.id })
+        } }
+        openBalances()
+        compose.onNodeWithText("Pay 50,00 kr").performScrollTo().performClick()
+        compose.onNodeWithText("Confirm").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Paid \u00b7 settled").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Paid \u00b7 settled").performScrollTo().assertIsDisplayed()
+        assertEquals(1, database.settlementDao.getSettlementsForGroup("g").size)
+        assertEquals(SyncStatus.PENDING_INSERT, database.settlementDao.getSettlementsForGroup("g").single().syncStatus)
+        assertEquals(1, database.syncQueueDao.getAllPending().size)
+        compose.onNodeWithContentDescription("Back").performClick()
+        openBalances()
+        compose.onNodeWithText("No payments needed. Everyone is settled.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Pay 50,00 kr").assertDoesNotExist()
     }
 
     @Test fun startsOnHomeAndExposesGroupsAndRemainingUnavailableDestinations() {

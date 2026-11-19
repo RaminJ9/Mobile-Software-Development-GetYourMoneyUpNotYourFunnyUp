@@ -16,6 +16,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.ProfileRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalBalanceRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalPaymentRepository
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.BalanceViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.BottomNavBar
@@ -49,9 +54,12 @@ fun AppShell(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
     profileRepository: ProfileRepository? = null,
-    database: AppDatabase? = null
+    database: AppDatabase? = null,
+    currentAccountId: () -> String? = { Firebase.auth.currentUser?.uid }
 ) {
     val applicationContext = LocalContext.current.applicationContext
+    val localDatabase = remember(database, applicationContext) { database ?: AppDatabase.getInstance(applicationContext) }
+    val accountProvider = rememberUpdatedState(currentAccountId)
     // Removing this shell on logout also removes its tab selection and account-scoped ViewModels.
     key(user.id) {
         var selected by rememberSaveable { mutableStateOf(AppTab.Home) }
@@ -68,7 +76,7 @@ fun AppShell(
             viewModelStoreOwner = owner,
             factory = remember(user.id, database) {
                 viewModelFactory {
-                    initializer { GroupsSession(database ?: AppDatabase.getInstance(applicationContext), user) }
+                    initializer { GroupsSession(localDatabase, user) }
                 }
             }
         )
@@ -129,6 +137,26 @@ fun AppShell(
                     )
                 }
                 groupId != null -> {
+                    // Financial observations and pending UI actions end when this group is closed.
+                    val balanceOwner = remember(groupId) {
+                        object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
+                    }
+                    DisposableEffect(balanceOwner) { onDispose { balanceOwner.viewModelStore.clear() } }
+                    val balancesViewModel: BalanceViewModel = viewModel(
+                        viewModelStoreOwner = balanceOwner,
+                        factory = remember(groupId, localDatabase, user.id) {
+                            viewModelFactory {
+                                initializer {
+                                    BalanceViewModel(
+                                        user.id, groupId,
+                                        LocalBalanceRepository(localDatabase) { accountProvider.value() },
+                                        paymentRepository = LocalPaymentRepository(
+                                            database = localDatabase, currentAccountId = { accountProvider.value() })
+                                    )
+                                }
+                            }
+                        }
+                    )
                     val membersViewModel: GroupMembersViewModel = viewModel(
                         viewModelStoreOwner = owner,
                         key = "group-members-$groupId",
@@ -143,7 +171,8 @@ fun AppShell(
                             }
                         }
                     )
-                    GroupDetailRoute(groups, groupId, membersViewModel, onBack = { openGroupId = null }, modifier = contentModifier)
+                    GroupDetailRoute(groups, groupId, membersViewModel, balancesViewModel,
+                        onBack = { openGroupId = null }, modifier = contentModifier)
                 }
                 else -> when (selected) {
                     AppTab.Home -> {

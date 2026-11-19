@@ -40,11 +40,11 @@ import kotlin.math.absoluteValue
 
 /** Ready for the future group hub. Parent navigation owns system insets and ViewModel lifetime. */
 @Composable
-fun BalanceRoute(viewModel: BalanceViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun BalanceRoute(viewModel: BalanceViewModel, onBack: () -> Unit, modifier: Modifier = Modifier, showHeader: Boolean = true) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connection = rememberConnectionState()
     BalanceScreen(state, onBack, viewModel::retry, modifier, connection,
-        viewModel::askPayment, viewModel::cancelPayment, viewModel::confirmPayment, viewModel::askMarkAsPaid)
+        viewModel::askPayment, viewModel::cancelPayment, viewModel::confirmPayment, viewModel::askMarkAsPaid, showHeader)
 }
 
 @Composable
@@ -57,10 +57,11 @@ fun BalanceScreen(
     onPay: (String) -> Unit = {},
     onCancelPayment: (String) -> Unit = {},
     onConfirmPayment: (String) -> Unit = {},
-    onMarkAsPaid: (String) -> Unit = {}
+    onMarkAsPaid: (String) -> Unit = {},
+    showHeader: Boolean = true
 ) {
     Column(modifier.fillMaxSize().background(AppColors.White)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.Space8), verticalAlignment = Alignment.CenterVertically) {
+        if (showHeader) Row(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.Space8), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(AppTouchTargets.MinTouchTarget)) {
                 DashboardSymbol(DashboardIcon.Arrow, Modifier.rotate(180f), description = "Back")
             }
@@ -84,7 +85,7 @@ fun BalanceScreen(
                 "Balances currently support DKK. This group uses ${state.currency}.",
                 Modifier.padding(AppSpacing.Space16), style = AppTypography.Body, color = AppColors.Ink600
             )
-            is BalanceUiState.Success -> BalanceContent(state, connection, onPay, onCancelPayment, onConfirmPayment, onMarkAsPaid)
+            is BalanceUiState.Success -> BalanceContent(state, connection, onPay, onCancelPayment, onConfirmPayment, onMarkAsPaid, showHeader)
         }
     }
 }
@@ -93,7 +94,7 @@ fun BalanceScreen(
 private fun BalanceContent(
     state: BalanceUiState.Success, connection: ConnectionState,
     onPay: (String) -> Unit, onCancelPayment: (String) -> Unit, onConfirmPayment: (String) -> Unit,
-    onMarkAsPaid: (String) -> Unit
+    onMarkAsPaid: (String) -> Unit, showHeader: Boolean
 ) {
     val cards = remember(state.payments, state.suggestions, state.members) {
         state.payments.ifEmpty { state.suggestions.map { transfer ->
@@ -109,10 +110,11 @@ private fun BalanceContent(
         failureMessage = if (state.hasFailedSync) "Some group changes couldn't sync yet. Balances include locally saved records." else null
     )
     LazyColumn(
-        Modifier.fillMaxSize(), contentPadding = PaddingValues(AppSpacing.Space16),
+        Modifier.fillMaxSize(),
+        contentPadding = if (showHeader) PaddingValues(AppSpacing.Space16) else PaddingValues(vertical = AppSpacing.Space4),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Space16)
     ) {
-        item("group") { Text(state.groupName, style = AppTypography.ScreenTitle, color = AppColors.Ink900) }
+        if (showHeader) item("group") { Text(state.groupName, style = AppTypography.ScreenTitle, color = AppColors.Ink900) }
         if (sync.hasFeedback) item("sync") { SyncFeedback(sync) }
         item("heading") { Text("Member balances", style = AppTypography.Section, color = AppColors.Ink900) }
         if (!state.hasLedgerEntries) item("empty-ledger") {

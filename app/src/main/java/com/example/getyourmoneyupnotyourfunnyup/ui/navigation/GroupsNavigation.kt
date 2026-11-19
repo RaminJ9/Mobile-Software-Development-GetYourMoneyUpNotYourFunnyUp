@@ -23,6 +23,7 @@ import com.example.getyourmoneyupnotyourfunnyup.data.repository.GroupRepository
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.*
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.balances.BalanceRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +74,7 @@ internal fun GroupDetailRoute(
     session: GroupsSession,
     groupId: String,
     membersVm: GroupMembersViewModel,
+    balancesVm: BalanceViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,10 +83,15 @@ internal fun GroupDetailRoute(
     var section by rememberSaveable(groupId) { mutableStateOf(GroupSection.Members) }
     val onMembersAction = rememberMembersActions(membersVm)
 
-    Column(modifier.fillMaxSize().background(AppColors.White).verticalScroll(rememberScrollState())) {
+    val scroll = rememberScrollState()
+    // Balances has its own lazy list, which needs a bounded height rather than a scrolling parent.
+    val balancesOpen = section == GroupSection.Balances
+    Column(modifier.fillMaxSize().background(AppColors.White)
+        .then(if (balancesOpen) Modifier else Modifier.verticalScroll(scroll))) {
         BackTopBar(header?.name ?: "Group", onBack)
         Column(
-            Modifier.padding(start = AppSpacing.Space16, end = AppSpacing.Space16, bottom = AppSpacing.Space24),
+            Modifier.then(if (balancesOpen) Modifier.weight(1f) else Modifier)
+                .padding(start = AppSpacing.Space16, end = AppSpacing.Space16, bottom = AppSpacing.Space24),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             header?.let { h ->
@@ -128,7 +135,7 @@ internal fun GroupDetailRoute(
                     GroupMembersUiState.Loading -> CircularProgressIndicator(color = AppColors.Green700)
                 }
                 GroupSection.Activity -> SectionPlaceholder("Expenses and payments for this group will show up here.")
-                GroupSection.Balances -> SectionPlaceholder("Balances and who pays whom will show up here.")
+                GroupSection.Balances -> BalanceRoute(balancesVm, onBack, modifier = Modifier.weight(1f), showHeader = false)
             }
         }
     }
