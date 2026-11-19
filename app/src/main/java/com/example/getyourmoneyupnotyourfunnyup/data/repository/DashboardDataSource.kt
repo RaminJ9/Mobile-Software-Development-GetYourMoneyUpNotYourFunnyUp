@@ -12,6 +12,10 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SettlementEnti
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.ExpenseDocumentMapper
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.SettlementDocumentMapper
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.SyncPayloadJson
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.SyncQueueProcessor
 import com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer
 import com.example.getyourmoneyupnotyourfunnyup.model.MemberBalance
 import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
@@ -40,7 +44,9 @@ import kotlinx.coroutines.withContext
  * for the authenticated navigation shell.
  */
 class DashboardDataSource(
-    private val database: AppDatabase
+    private val database: AppDatabase,
+    private val syncProcessor: SyncQueueProcessor? = null,
+    private val currentAccountId: () -> String? = { null }
 ) {
     private val watchedTables = arrayOf(
         UsersTable.TABLE_NAME,
@@ -80,7 +86,7 @@ class DashboardDataSource(
                 paymentMethod = "MobilePay",
                 status = SettlementStatus.COMPLETED,
                 createdAt = now,
-                syncStatus = SyncStatus.SYNCED
+                syncStatus = SyncStatus.PENDING_INSERT
             )
             database.settlementDao.upsertSettlement(entity)
             database.syncQueueDao.enqueue(
@@ -88,17 +94,42 @@ class DashboardDataSource(
                     entityType = SyncEntityType.SETTLEMENT,
                     entityId = settlementId,
                     action = SyncAction.CREATE,
-                    payloadJson = """{"id":"$settlementId","groupId":"${payment.groupId}","amountCents":${payment.transfer.amountCents}}"""
+                    payloadJson = SyncPayloadJson.encode(
+                        SettlementDocumentMapper.toMap(entity, recordedBy = payment.transfer.debtorId)
+                    )
                 )
             )
-            SyncStatus.SYNCED
+            val accountId = currentAccountId() ?: payment.transfer.debtorId
+            syncProcessor?.processNext(accountId)
+            database.settlementDao.getSettlementById(settlementId)?.syncStatus ?: SyncStatus.PENDING_INSERT
         }
     }
 
     val syncRetryActions: SyncRetryActions = SyncRetryActions { event ->
         withContext(Dispatchers.IO) {
-            database.expenseDao.updateSyncStatus(event.id, SyncStatus.SYNCED)
-            SyncStatus.SYNCED
+            val expense = database.expenseDao.getExpenseById(event.id)
+            if (expense != null) {
+                database.expenseDao.updateSyncStatus(event.id, SyncStatus.PENDING_UPDATE)
+                val alreadyQueued = database.syncQueueDao.getAllPending().any {
+                    it.entityType == SyncEntityType.EXPENSE && it.entityId == event.id
+                }
+                if (!alreadyQueued) {
+                    val splits = database.expenseDao.getSplitsForExpense(event.id)
+                    database.syncQueueDao.enqueue(
+                        SyncQueueEntity(
+                            entityType = SyncEntityType.EXPENSE,
+                            entityId = event.id,
+                            action = SyncAction.UPDATE,
+                            payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(expense, splits))
+                        )
+                    )
+                }
+            }
+            val accountId = currentAccountId() ?: expense?.createdBy.orEmpty()
+            if (accountId.isNotBlank()) {
+                syncProcessor?.processNext(accountId)
+            }
+            database.expenseDao.getExpenseById(event.id)?.syncStatus ?: SyncStatus.PENDING_UPDATE
         }
     }
 

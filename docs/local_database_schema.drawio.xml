@@ -7,34 +7,58 @@
         <mxCell id="1" parent="0" />
 
         <!-- Title -->
-        <mxCell id="title" value="Local Database Schema (Android Room / SQLite)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="title" value="Local Database Schema (Android SQLite — v3)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="60" y="20" width="600" height="40" as="geometry" />
         </mxCell>
 
         <!-- 1. USERS TABLE -->
         <mxCell id="tbl_users" value="users" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="60" y="100" width="280" height="210" as="geometry" />
+          <mxGeometry x="60" y="100" width="300" height="420" as="geometry" />
         </mxCell>
         <mxCell id="u_c1" value="PK  id : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontStyle=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="30" width="280" height="26" as="geometry" />
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
         </mxCell>
         <mxCell id="u_c2" value="      email : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="56" width="280" height="26" as="geometry" />
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
         </mxCell>
         <mxCell id="u_c3" value="      display_name : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="82" width="280" height="26" as="geometry" />
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
         </mxCell>
         <mxCell id="u_c4" value="      photo_url : TEXT" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="108" width="280" height="26" as="geometry" />
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="u_c5" value="      notifications_enabled : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="134" width="280" height="26" as="geometry" />
+        <mxCell id="u_c5" value="      count : INTEGER (0)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="134" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="u_c6" value="      sync_status : TEXT ('SYNCED')" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="160" width="280" height="26" as="geometry" />
+        <mxCell id="u_c6" value="      notifications_enabled : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="160" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="u_c7" value="      updated_at : INTEGER NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
-          <mxGeometry y="186" width="280" height="24" as="geometry" />
+        <mxCell id="u_c7" value="      phone_number : TEXT" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="186" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c8" value="      exclude_alcohol : INTEGER (0)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="212" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c9" value="      exclude_meat : INTEGER (0)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="238" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c10" value="      notify_new_expenses : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="264" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c11" value="      notify_changed_expenses : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="290" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c12" value="      notify_payment_reminders : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="316" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c13" value="      notify_sync_updates : INTEGER (1)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="342" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c14" value="      sync_status : TEXT ('SYNCED')" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="368" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="u_c15" value="      updated_at : INTEGER NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_users">
+          <mxGeometry y="394" width="300" height="26" as="geometry" />
         </mxCell>
 
         <!-- 2. GROUPS TABLE -->
@@ -53,7 +77,7 @@
         <mxCell id="g_c4" value="      currency : TEXT ('EUR')" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_groups">
           <mxGeometry y="108" width="280" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="g_c5" value="FK  created_by : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_groups">
+        <mxCell id="g_c5" value="      created_by : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_groups">
           <mxGeometry y="134" width="280" height="26" as="geometry" />
         </mxCell>
         <mxCell id="g_c6" value="      created_at : INTEGER NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="tbl_groups">
@@ -132,7 +156,7 @@
 
         <!-- 5. EXPENSE_SPLITS TABLE -->
         <mxCell id="tbl_splits" value="expense_splits" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
-          <mxGeometry x="60" y="450" width="280" height="160" as="geometry" />
+          <mxGeometry x="60" y="590" width="280" height="160" as="geometry" />
         </mxCell>
         <mxCell id="s_c1" value="PK  id : TEXT NOT NULL" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontStyle=1;" vertex="1" parent="tbl_splits">
           <mxGeometry y="30" width="280" height="26" as="geometry" />
@@ -187,7 +211,7 @@
 
         <!-- 7. SYNC_QUEUE TABLE -->
         <mxCell id="tbl_sync_queue" value="sync_queue (WorkManager Offline Retry Queue)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="1">
-          <mxGeometry x="60" y="700" width="320" height="238" as="geometry" />
+          <mxGeometry x="60" y="820" width="320" height="238" as="geometry" />
         </mxCell>
         <mxCell id="sq_c1" value="PK  queue_id : INTEGER AUTOINCREMENT" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontStyle=1;" vertex="1" parent="tbl_sync_queue">
           <mxGeometry y="30" width="320" height="26" as="geometry" />
@@ -215,7 +239,7 @@
         </mxCell>
 
         <!-- RELATIONSHIPS -->
-        <mxCell id="rel_user_gm" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="tbl_users" target="tbl_group_members">
+        <mxCell id="rel_user_gm" value="1:N (CASCADE)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="tbl_users" target="tbl_group_members">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="rel_group_gm" value="1:N (CASCADE)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="tbl_groups" target="tbl_group_members">
@@ -234,6 +258,9 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="rel_group_settle" value="1:N (CASCADE)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="tbl_groups" target="tbl_settlements">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_user_settle" value="debtor / creditor (1:N)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="tbl_users" target="tbl_settlements">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>

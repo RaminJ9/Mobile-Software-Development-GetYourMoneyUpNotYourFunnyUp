@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlin.time.Duration.Companion.milliseconds
 
 class SyncRunner(
     private val processor: SyncQueueProcessor?,
@@ -27,7 +28,7 @@ class SyncRunner(
     suspend fun run(accountId: String): SyncRunResult {
         readiness(accountId)?.let { return it }
         return try {
-            withTimeout(timeoutMillis) {
+            withTimeout(timeoutMillis.milliseconds) {
                 processingLock.withLock {
                     repeat(maxOperations) {
                         if (currentAccount() != accountId) return@withLock SyncRunResult.AccountChanged

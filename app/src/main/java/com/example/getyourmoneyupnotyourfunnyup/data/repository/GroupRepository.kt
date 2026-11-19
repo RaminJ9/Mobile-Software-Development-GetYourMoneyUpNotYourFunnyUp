@@ -12,6 +12,8 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.GroupDocumentMapper
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.SyncPayloadJson
 import com.example.getyourmoneyupnotyourfunnyup.model.GroupRole
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.User
@@ -23,8 +25,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.UUID
 
 /**
@@ -40,7 +40,8 @@ class GroupRepository(
     private val database: AppDatabase,
     private val account: User,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val newId: () -> String = { UUID.randomUUID().toString() }
+    private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val onEnqueued: (() -> Unit)? = null
 ) : GroupFavouriteActions, ContactDirectory, GroupCreationActions, MemberActions, MemberRemovalActions {
 
     private val groupDao get() = database.groupDao
@@ -179,6 +180,7 @@ class GroupRepository(
             groupDao.upsertGroupWithMembers(group, members)
             enqueue(SyncAction.CREATE, groupId, groupPayload(group, members))
         }
+        onEnqueued?.invoke()
         CreatedGroup(groupId, SyncStatus.PENDING_INSERT)
     }
 
@@ -192,16 +194,15 @@ class GroupRepository(
             ensureUserRow(member)
             groupDao.addMember(entity)
             groupDao.touchGroup(groupId, status, clock())
-            enqueue(
-                SyncAction.UPDATE, groupId,
-                JSONObject()
-                    .put("op", if (entity.invited) "inviteMember" else "addMember")
-                    .put("groupId", groupId)
-                    .put("member", memberJson(entity))
-                    .apply { if (member is MemberDraft.Invited) put("contact", normaliseContact(member.contactValue)) }
-                    .toString()
-            )
+            val payloadMap = buildMap<String, Any?> {
+                put("op", if (entity.invited) "inviteMember" else "addMember")
+                put("groupId", groupId)
+                put("member", memberMap(entity))
+                if (member is MemberDraft.Invited) put("contact", normaliseContact(member.contactValue))
+            }
+            enqueue(SyncAction.UPDATE, groupId, SyncPayloadJson.encode(payloadMap))
         }
+        onEnqueued?.invoke()
         status
     }
 
@@ -214,11 +215,26 @@ class GroupRepository(
             groupDao.removeMember(groupId, userId)
             groupDao.touchGroup(groupId, status, clock())
             enqueue(
-                SyncAction.UPDATE, groupId,
-                JSONObject().put("op", "removeMember").put("groupId", groupId).put("userId", userId).toString()
+                SyncAction.UPDATE,
+                groupId,
+                SyncPayloadJson.encode(mapOf("op" to "removeMember", "groupId" to groupId, "userId" to userId))
             )
         }
+        onEnqueued?.invoke()
         status
+    }
+
+    suspend fun cacheRemoteGroup(data: Map<String, Any?>, groupId: String) = withContext(Dispatchers.IO) {
+        val local = groupDao.getGroupById(groupId)
+        if (local != null && local.syncStatus != SyncStatus.SYNCED) return@withContext
+        val (remoteGroup, remoteMembers) = GroupDocumentMapper.entitiesFromMap(
+            data = data,
+            groupId = groupId,
+            isFavourite = local?.isFavourite ?: false,
+            nowMillis = clock()
+        )
+        if (local != null && local.updatedAt > remoteGroup.updatedAt) return@withContext
+        groupDao.upsertGroupWithMembers(remoteGroup, remoteMembers)
     }
 
     /* ------------------------------------------------------------------ helpers */
@@ -288,25 +304,15 @@ class GroupRepository(
         )
     }
 
-    private fun groupPayload(group: GroupEntity, members: List<GroupMemberEntity>): String = JSONObject()
-        .put("id", group.id)
-        .put("name", group.name)
-        .put("description", group.description ?: JSONObject.NULL)
-        .put("currency", group.currency)
-        .put("colourIndex", group.colourIndex)
-        .put("createdBy", group.createdBy)
-        .put("createdAt", group.createdAt)
-        .put("updatedAt", group.updatedAt)
-        .put("memberIds", JSONArray(members.filterNot { it.invited }.map { it.userId }))
-        .put("members", JSONArray(members.map(::memberJson)))
-        .toString()
+    private fun groupPayload(group: GroupEntity, members: List<GroupMemberEntity>): String {
+        val displayNames = members.mapNotNull { member ->
+            userDao.getUserById(member.userId)?.displayName?.let { member.userId to it }
+        }.toMap()
+        return SyncPayloadJson.encode(GroupDocumentMapper.toMap(group, members, displayNames))
+    }
 
-    private fun memberJson(member: GroupMemberEntity): JSONObject = JSONObject()
-        .put("userId", member.userId)
-        .put("displayName", userDao.getUserById(member.userId)?.displayName ?: JSONObject.NULL)
-        .put("role", member.role.name)
-        .put("joinedAt", member.joinedAt)
-        .put("invited", member.invited)
+    private fun memberMap(member: GroupMemberEntity): Map<String, Any?> =
+        GroupDocumentMapper.memberToMap(member, userDao.getUserById(member.userId)?.displayName)
 
     private fun UserEntity.toContact() = Contact(id, displayName, email, phone, memberColourIndex(id))
 

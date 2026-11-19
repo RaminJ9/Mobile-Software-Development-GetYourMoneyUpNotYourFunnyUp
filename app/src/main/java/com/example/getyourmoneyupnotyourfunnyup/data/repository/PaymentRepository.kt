@@ -5,6 +5,8 @@ import androidx.core.database.sqlite.transaction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.SettlementsTable as Payments
 import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.SyncQueueTable as Queue
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.SettlementDocumentMapper
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.SyncPayloadJson
 import com.example.getyourmoneyupnotyourfunnyup.model.BalanceCalculator
 import com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer
 import com.example.getyourmoneyupnotyourfunnyup.model.Settlement
@@ -13,7 +15,6 @@ import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 /** S8-pay: local simulated repayment. The caller retains requestId across retries of one confirmation. */
 fun interface PaymentRepository {
@@ -23,6 +24,7 @@ fun interface PaymentRepository {
 /** Uses the existing outbox; uploading and notification delivery remain the sync module's job. */
 class LocalPaymentRepository(
     private val database: AppDatabase,
+    private val onEnqueued: (() -> Unit)? = null,
     private val currentAccountId: () -> String?
 ) : PaymentRepository {
     override suspend fun pay(accountId: String, groupId: String, transfer: DebtTransfer, requestId: String): Settlement =
@@ -77,13 +79,9 @@ class LocalPaymentRepository(
                         put(Payments.COL_CREATED_AT, payment.createdAt)
                         put(Payments.COL_SYNC_STATUS, payment.syncStatus.name)
                     })
-                    val payload = JSONObject().apply {
-                        put("id", payment.id); put("groupId", payment.groupId)
-                        put("debtorId", payment.debtorId); put("creditorId", payment.creditorId)
-                        put("amountCents", payment.amountCents); put("currency", payment.currency)
-                        put("paymentMethod", payment.paymentMethod); put("status", payment.status.name)
-                        put("createdAt", payment.createdAt)
-                    }.toString()
+                    val payload = SyncPayloadJson.encode(
+                        SettlementDocumentMapper.toMap(payment, recordedBy = accountId)
+                    )
                     insertOrThrow(Queue.TABLE_NAME, null, ContentValues().apply {
                         put(Queue.COL_ENTITY_TYPE, "SETTLEMENT")
                         put(Queue.COL_ENTITY_ID, payment.id)
@@ -97,6 +95,7 @@ class LocalPaymentRepository(
             }
             // Publish only after commit, so observers cannot read an uncommitted or partial save.
             database.notifyTableChanged(Payments.TABLE_NAME, Queue.TABLE_NAME)
+            onEnqueued?.invoke()
             result
         }
 
