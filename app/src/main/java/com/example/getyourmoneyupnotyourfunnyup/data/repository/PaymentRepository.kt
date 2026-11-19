@@ -16,8 +16,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** S8-pay: local simulated repayment. The caller retains requestId across retries of one confirmation. */
-fun interface PaymentRepository {
+interface PaymentRepository {
     suspend fun pay(accountId: String, groupId: String, transfer: DebtTransfer, requestId: String): Settlement
+    suspend fun markAsPaid(accountId: String, groupId: String, transfer: DebtTransfer, requestId: String): Settlement
 }
 
 /** Uses the existing outbox; uploading and notification delivery remain the sync module's job. */
@@ -26,10 +27,19 @@ class LocalPaymentRepository(
     private val currentAccountId: () -> String?
 ) : PaymentRepository {
     override suspend fun pay(accountId: String, groupId: String, transfer: DebtTransfer, requestId: String): Settlement =
-        withContext(Dispatchers.IO) {
+        record(accountId, groupId, transfer, requestId, creditorConfirmation = false)
+
+    override suspend fun markAsPaid(accountId: String, groupId: String, transfer: DebtTransfer, requestId: String): Settlement =
+        record(accountId, groupId, transfer, requestId, creditorConfirmation = true)
+
+    private suspend fun record(
+        accountId: String, groupId: String, transfer: DebtTransfer, requestId: String, creditorConfirmation: Boolean
+    ): Settlement = withContext(Dispatchers.IO) {
             require(accountId.isNotBlank() && groupId.isNotBlank() && requestId.isNotBlank()) { "Account, group and request IDs are required." }
             require(transfer.amountCents > 0 && transfer.debtorId != transfer.creditorId) { "Invalid repayment." }
-            if (transfer.debtorId != accountId) throw SecurityException("You can only pay your own debt.")
+            if (creditorConfirmation) {
+                if (transfer.creditorId != accountId) throw SecurityException("Only the creditor can mark this debt as paid.")
+            } else if (transfer.debtorId != accountId) throw SecurityException("You can only pay your own debt.")
             checkAccount(accountId)
             // Serialize validation and both inserts. A competing confirmation sees the updated ledger.
             val result = database.writableDatabase.transaction {

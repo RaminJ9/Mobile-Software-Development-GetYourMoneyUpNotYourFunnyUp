@@ -145,6 +145,32 @@ class PayRepoTest {
         assertTrue(db.settlementDao.getSettlementsForGroup("g2").isEmpty())
         assertEquals(1, db.syncQueueDao.getAllPending().size)
     }
+    @Test fun creditorConfirmationPersistsAndRetryDoesNotCreateAnotherSettlement() = runBlocking {
+        account = "ida"
+        val saved = repository().markAsPaid("ida", "g", transfer, "received")
+        assertEquals(saved, repository().markAsPaid("ida", "g", transfer, "received"))
+        assertEquals(SyncStatus.PENDING_INSERT, saved.syncStatus)
+        assertEquals("you", saved.debtorId); assertEquals("ida", saved.creditorId)
+        assertEquals(1, db.settlementDao.getSettlementsForGroup("g").size)
+        assertEquals(1, db.syncQueueDao.getAllPending().size)
+        val snapshot = withTimeout(5.seconds) { LocalBalanceRepository(db) { account }.observeGroup("ida", "g").first() }
+        assertTrue(BalanceCalculator.calculate("g", "DKK", snapshot.group.members.map { it.userId },
+            snapshot.expenses, snapshot.settlements).all { it.netBalanceCents == 0L })
+        rejected(SecurityException::class.java) { repository().pay("ida", "g", transfer, "not-my-debt") }
+    }
+    @Test fun creditorActionRejectsOtherMembersStaleAmountsAndRemovedCreditor() = runBlocking {
+        for (actor in listOf("you", "other")) {
+            account = actor
+            rejected(SecurityException::class.java) { repository().markAsPaid(actor, "g", transfer, "unauthorized") }
+        }
+        account = "ida"
+        rejected(IllegalArgumentException::class.java) {
+            repository().markAsPaid("ida", "g", transfer.copy(amountCents = 6000), "wrong-amount")
+        }
+        db.groupDao.removeMember("g", "ida")
+        rejected(SecurityException::class.java) { repository().markAsPaid("ida", "g", transfer, "removed") }
+        assertNoPayments()
+    }
     @Test fun committedPaymentNotifiesBalanceObservers() = runBlocking {
         val snapshots = Channel<BalanceLedger>(Channel.UNLIMITED)
         val observation = launch(Dispatchers.IO) {

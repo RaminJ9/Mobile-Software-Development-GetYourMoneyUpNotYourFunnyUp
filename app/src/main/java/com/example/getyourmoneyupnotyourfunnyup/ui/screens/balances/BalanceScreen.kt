@@ -33,6 +33,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.components.DashboardSymbol
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.SyncFeedback
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.rememberConnectionState
 import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.SyncPresentation
+import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.InlineActionState
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlin.math.absoluteValue
@@ -42,7 +43,8 @@ import kotlin.math.absoluteValue
 fun BalanceRoute(viewModel: BalanceViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connection = rememberConnectionState()
-    BalanceScreen(state, onBack, viewModel::retry, modifier, connection)
+    BalanceScreen(state, onBack, viewModel::retry, modifier, connection,
+        viewModel::askPayment, viewModel::cancelPayment, viewModel::confirmPayment, viewModel::askMarkAsPaid)
 }
 
 @Composable
@@ -51,7 +53,11 @@ fun BalanceScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    connection: ConnectionState = ConnectionState.Unknown
+    connection: ConnectionState = ConnectionState.Unknown,
+    onPay: (String) -> Unit = {},
+    onCancelPayment: (String) -> Unit = {},
+    onConfirmPayment: (String) -> Unit = {},
+    onMarkAsPaid: (String) -> Unit = {}
 ) {
     Column(modifier.fillMaxSize().background(AppColors.White)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.Space8), verticalAlignment = Alignment.CenterVertically) {
@@ -78,13 +84,24 @@ fun BalanceScreen(
                 "Balances currently support DKK. This group uses ${state.currency}.",
                 Modifier.padding(AppSpacing.Space16), style = AppTypography.Body, color = AppColors.Ink600
             )
-            is BalanceUiState.Success -> BalanceContent(state, connection)
+            is BalanceUiState.Success -> BalanceContent(state, connection, onPay, onCancelPayment, onConfirmPayment, onMarkAsPaid)
         }
     }
 }
 
 @Composable
-private fun BalanceContent(state: BalanceUiState.Success, connection: ConnectionState) {
+private fun BalanceContent(
+    state: BalanceUiState.Success, connection: ConnectionState,
+    onPay: (String) -> Unit, onCancelPayment: (String) -> Unit, onConfirmPayment: (String) -> Unit,
+    onMarkAsPaid: (String) -> Unit
+) {
+    val cards = remember(state.payments, state.suggestions, state.members) {
+        state.payments.ifEmpty { state.suggestions.map { transfer ->
+            BalancePayment("${transfer.debtorId}-${transfer.creditorId}-${transfer.amountCents}", transfer,
+                state.members.first { it.userId == transfer.debtorId }.name,
+                state.members.first { it.userId == transfer.creditorId }.name)
+        } }
+    }
     val maximum = remember(state.members) { state.members.maxOfOrNull { it.amountCents.toDouble().absoluteValue } ?: 0.0 }
     val sync = SyncPresentation(
         connection = connection,
@@ -128,24 +145,69 @@ private fun BalanceContent(state: BalanceUiState.Success, connection: Connection
                 )
             }
         }
-        items(state.suggestions, key = { "transfer-${it.debtorId}-${it.creditorId}" }) { transfer ->
-            val debtor = state.members.first { it.userId == transfer.debtorId }
-            val creditor = state.members.first { it.userId == transfer.creditorId }
-            Surface(shape = AppShapes.ListCard, color = AppColors.White, border = BorderStroke(1.dp, AppColors.Line)) {
-                Column(
-                    Modifier.fillMaxWidth().padding(AppSpacing.Space16),
-                    verticalArrangement = Arrangement.spacedBy(AppSpacing.Space8)
-                ) {
-                    Text("${debtor.name} \u2192 ${creditor.name}", style = AppTypography.ItemTitle, color = AppColors.Ink900)
-                    Text(
-                        formatDanishAmountFromCents(transfer.amountCents),
-                        style = AppTypography.Section,
-                        color = when {
-                            debtor.isYou -> AppColors.Red700
-                            creditor.isYou -> AppColors.Green700
-                            else -> AppColors.Ink900
+        items(cards, key = { it.id }) { card ->
+            SettlementCard(
+                card = card,
+                canPay = state.paymentsAvailable && card.transfer in state.suggestions && state.members.any { it.isYou && it.userId == card.transfer.debtorId },
+                canMarkAsPaid = state.paymentsAvailable && card.transfer in state.suggestions && state.members.any { it.isYou && it.userId == card.transfer.creditorId },
+                creditorIsYou = state.members.any { it.isYou && it.userId == card.transfer.creditorId },
+                isSaving = state.isSaving,
+                onPay = { onPay(card.id) }, onCancel = { onCancelPayment(card.id) },
+                onConfirm = { onConfirmPayment(card.id) }, onMarkAsPaid = { onMarkAsPaid(card.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettlementCard(
+    card: BalancePayment, canPay: Boolean, canMarkAsPaid: Boolean, creditorIsYou: Boolean, isSaving: Boolean,
+    onPay: () -> Unit, onCancel: () -> Unit, onConfirm: () -> Unit, onMarkAsPaid: () -> Unit
+) {
+    val paid = card.action is InlineActionState.Done
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("payment-${card.id}"),
+        shape = AppShapes.ListCard, color = if (paid) AppColors.Green50 else AppColors.White,
+        border = BorderStroke(1.dp, AppColors.Line)
+    ) {
+        Column(Modifier.padding(AppSpacing.Space16), verticalArrangement = Arrangement.spacedBy(AppSpacing.Space8)) {
+            Text("${card.debtorName} \u2192 ${card.creditorName}", style = AppTypography.ItemTitle, color = AppColors.Ink900)
+            Text(formatDanishAmountFromCents(card.transfer.amountCents), style = AppTypography.Section,
+                color = if (paid || creditorIsYou) AppColors.Green700 else if (canPay) AppColors.Red700 else AppColors.Ink900)
+            when (val action = card.action) {
+                is InlineActionState.Done -> {
+                    Text("Paid \u00b7 settled", style = AppTypography.CaptionStrong, color = AppColors.Green700)
+                    Text(when (action.syncStatus) {
+                        com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus.SYNCED -> "Synced"
+                        com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus.FAILED -> "Saved on your phone \u00b7 couldn't sync yet"
+                        else -> "Saved on your phone \u00b7 waiting to sync"
+                    }, style = AppTypography.Caption, color = AppColors.Ink600)
+                }
+                InlineActionState.Working -> Text("Saving...", style = AppTypography.CaptionStrong, color = AppColors.Ink600)
+                InlineActionState.Confirming -> if (canPay || canMarkAsPaid) {
+                    Text(if (card.markAsPaid) "Mark payment from ${card.debtorName} as received?"
+                        else "Confirm simulated payment to ${card.creditorName}?", style = AppTypography.Caption, color = AppColors.Ink600)
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.Space8)) {
+                        OutlinedButton(onClick = onCancel, enabled = !isSaving,
+                            modifier = Modifier.weight(1f).heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton) {
+                            Text("Cancel", color = AppColors.Ink600)
                         }
-                    )
+                        Button(onClick = onConfirm, enabled = !isSaving,
+                            modifier = Modifier.weight(1f).heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton,
+                            colors = ButtonDefaults.buttonColors(containerColor = if (card.markAsPaid) AppColors.Green700 else AppColors.Red700, contentColor = AppColors.White)) { Text("Confirm") }
+                    }
+                }
+                else -> {
+                    if (action is InlineActionState.Failed) Text(action.message, style = AppTypography.Caption, color = AppColors.Ink600)
+                    if (canPay) Button(onClick = onPay, enabled = !isSaving,
+                        modifier = Modifier.heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red700, contentColor = AppColors.White)) {
+                        Text("Pay ${formatDanishAmountFromCents(card.transfer.amountCents)}")
+                    }
+                    if (canMarkAsPaid) OutlinedButton(onClick = onMarkAsPaid, enabled = !isSaving,
+                        modifier = Modifier.heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton) {
+                        Text("Mark as paid", color = AppColors.Green700)
+                    }
                 }
             }
         }
@@ -235,7 +297,7 @@ private fun BalancePreview() {
                 BalanceMember("mads", "Mads", 12550L),
                 BalanceMember("ida", "Ida", 0L)
             ), hasLedgerEntries = true, pendingCount = 1, hasFailedSync = false,
-                suggestions = listOf(com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer("you", "mads", 12550L, "DKK"))), {}, {}
+                suggestions = listOf(com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer("you", "mads", 12550L, "DKK")), paymentsAvailable = true), {}, {}
         )
     }
 }
