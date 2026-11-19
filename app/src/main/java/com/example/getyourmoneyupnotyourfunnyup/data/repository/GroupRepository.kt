@@ -1,0 +1,320 @@
+package com.example.getyourmoneyupnotyourfunnyup.data.repository
+
+import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.ExpensesTable
+import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.GroupMembersTable
+import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.GroupsTable
+import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.SyncQueueTable
+import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.UsersTable
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.GroupEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.GroupMemberEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
+import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
+import com.example.getyourmoneyupnotyourfunnyup.model.GroupRole
+import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
+import com.example.getyourmoneyupnotyourfunnyup.model.User
+import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.DashboardGroup
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+/**
+ * Offline-first repository for groups & members (Person 2: S4, S5, S8c, S-Warn).
+ *
+ * Every write goes to SQLite first, inside one transaction together with its `sync_queue` entry,
+ * and returns the local sync state (`PENDING_*`). The UI never waits for the network; the queued
+ * entry is pushed to Firestore later by the WorkManager processor owned by the database/sync owner.
+ *
+ * Construct one instance per signed-in account ([account]) and drop it on logout.
+ */
+class GroupRepository(
+    private val database: AppDatabase,
+    private val account: User,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val newId: () -> String = { UUID.randomUUID().toString() }
+) : GroupFavouriteActions, ContactDirectory, GroupCreationActions, MemberActions, MemberRemovalActions {
+
+    private val groupDao get() = database.groupDao
+    private val userDao get() = database.userDao
+    private val expenseDao get() = database.expenseDao
+    private val syncQueueDao get() = database.syncQueueDao
+
+    /* ------------------------------------------------------------------ reads (SSOT) */
+
+    /** Groups the account belongs to, with colour, favourite, activity and pending-sync metadata. */
+    fun observeGroups(): Flow<List<DashboardGroup>> =
+        database.observeTables(
+            GroupsTable.TABLE_NAME, GroupMembersTable.TABLE_NAME, UsersTable.TABLE_NAME, ExpensesTable.TABLE_NAME
+        ).map { withContext(Dispatchers.IO) { loadGroups() } }
+
+    /** Groups tab snapshot. [balances] (per-group net for the account) come from the ledger owner. */
+    fun observeGroupsList(balances: Flow<Map<String, Long>?> = flowOf(null)): Flow<GroupsListData> =
+        combine(observeGroups(), balances) { groups, groupBalances ->
+            GroupsListData(account.id, groups, groupBalances, clock())
+        }
+
+    /**
+     * Members tab snapshot. [balances] are each member's net in øre from the ledger owner, and
+     * [dietaryRules] the members' "Never charge me for" settings from the profile owner.
+     */
+    fun observeMembers(
+        groupId: String,
+        balances: Flow<Map<String, Long>?> = flowOf(null),
+        dietaryRules: Flow<Map<String, Set<DietaryRule>>> = flowOf(emptyMap())
+    ): Flow<GroupMembersData> = combine(
+        database.observeTables(GroupsTable.TABLE_NAME, GroupMembersTable.TABLE_NAME, UsersTable.TABLE_NAME)
+            .map { withContext(Dispatchers.IO) { loadMembers(groupId) } },
+        balances,
+        dietaryRules
+    ) { loaded, memberBalances, rules ->
+        loaded.copy(
+            members = loaded.members.map { it.copy(dietaryRules = rules[it.userId].orEmpty()) },
+            balances = memberBalances
+        )
+    }
+
+    fun observeKnownContacts(): Flow<List<Contact>> =
+        database.observeTables(GroupMembersTable.TABLE_NAME, UsersTable.TABLE_NAME)
+            .map { withContext(Dispatchers.IO) { loadKnownContacts() } }
+
+    private fun loadGroups(): List<DashboardGroup> = groupDao.getGroupsForUser(account.id).map { entity ->
+        val members = groupDao.getMembersForGroup(entity.id).map { member ->
+            member.toDomain(userDao.getUserById(member.userId)?.displayName.orEmpty())
+        }
+        val expenses = expenseDao.getActiveExpensesForGroup(entity.id)
+        DashboardGroup(
+            group = entity.toDomain(members),
+            colourIndex = entity.colourIndex,
+            isFavourite = entity.isFavourite,
+            lastActivityAt = maxOf(entity.updatedAt, expenses.maxOfOrNull { it.createdAt } ?: 0L),
+            pendingExpenseCount = expenses.count { it.syncStatus != SyncStatus.SYNCED }
+        )
+    }
+
+    private fun loadMembers(groupId: String): GroupMembersData {
+        val group = groupDao.getGroupById(groupId)
+        val members = groupDao.getMembersForGroup(groupId).map { member ->
+            val user = userDao.getUserById(member.userId)
+            GroupMemberItem(
+                userId = member.userId,
+                displayName = when {
+                    member.userId == account.id -> "You"
+                    user != null -> user.displayName
+                    else -> "Unknown member"
+                },
+                role = member.role,
+                colourIndex = memberColourIndex(member.userId),
+                invited = member.invited,
+                syncStatus = group?.syncStatus ?: SyncStatus.SYNCED
+            )
+        }
+        return GroupMembersData(
+            groupId = groupId,
+            groupName = group?.name.orEmpty(),
+            currentUserId = account.id,
+            members = members,
+            suggestions = loadKnownContacts(),
+            canManageMembers = group != null && members.any { it.userId == account.id }
+        )
+    }
+
+    private fun loadKnownContacts(): List<Contact> = groupDao.getCoMemberIds(account.id)
+        .mapNotNull { userDao.getUserById(it)?.toContact() }
+
+    /* ------------------------------------------------------------------ lookup */
+
+    override suspend fun find(query: String): Contact? = withContext(Dispatchers.IO) {
+        val value = query.trim()
+        val user = when (contactKind(value)) {
+            ContactKind.Email -> userDao.getUserByEmailIgnoringCase(value)
+            ContactKind.Phone -> userDao.getUserByPhone(normaliseContact(value))
+            ContactKind.Invalid -> null
+        }
+        user?.takeUnless { it.id.startsWith(INVITE_PREFIX) }?.toContact()
+    }
+
+    /* ------------------------------------------------------------------ writes */
+
+    override suspend fun setFavourite(groupId: String, favourite: Boolean): SyncStatus = withContext(Dispatchers.IO) {
+        requireMembership(groupId)
+        // The star is the account's personal preference, kept on this phone; nothing to upload.
+        groupDao.setFavourite(groupId, favourite)
+        SyncStatus.SYNCED
+    }
+
+    override suspend fun createGroup(draft: CreateGroupDraft): CreatedGroup = withContext(Dispatchers.IO) {
+        val name = draft.name.trim()
+        require(name.isNotEmpty()) { "Give your group a name" }
+        val now = clock()
+        val groupId = newId()
+        val group = GroupEntity(
+            id = groupId,
+            name = name,
+            description = draft.description?.trim()?.ifEmpty { null },
+            currency = "DKK",
+            createdBy = account.id,
+            createdAt = now,
+            updatedAt = now,
+            syncStatus = SyncStatus.PENDING_INSERT,
+            colourIndex = draft.colourIndex.mod(GROUP_COLOUR_COUNT)
+        )
+        val members = buildList {
+            add(GroupMemberEntity(groupId, account.id, GroupRole.ADMIN, now))
+            draft.members.distinctBy { it.key }.forEachIndexed { index, member ->
+                add(GroupMemberEntity(groupId, member.key, GroupRole.MEMBER, now + index + 1, member is MemberDraft.Invited))
+            }
+        }.distinctBy { it.userId }
+        inTransaction {
+            ensureAccountRow()
+            draft.members.forEach { ensureUserRow(it) }
+            groupDao.upsertGroupWithMembers(group, members)
+            enqueue(SyncAction.CREATE, groupId, groupPayload(group, members))
+        }
+        CreatedGroup(groupId, SyncStatus.PENDING_INSERT)
+    }
+
+    override suspend fun addMember(groupId: String, member: MemberDraft): SyncStatus = withContext(Dispatchers.IO) {
+        requireMembership(groupId)
+        val existing = groupDao.getMembersForGroup(groupId)
+        require(existing.none { it.userId == member.key }) { "${member.displayName} is already in the group" }
+        val entity = GroupMemberEntity(groupId, member.key, GroupRole.MEMBER, clock(), member is MemberDraft.Invited)
+        val status = nextStatus(groupId)
+        inTransaction {
+            ensureUserRow(member)
+            groupDao.addMember(entity)
+            groupDao.touchGroup(groupId, status, clock())
+            enqueue(
+                SyncAction.UPDATE, groupId,
+                JSONObject()
+                    .put("op", if (entity.invited) "inviteMember" else "addMember")
+                    .put("groupId", groupId)
+                    .put("member", memberJson(entity))
+                    .apply { if (member is MemberDraft.Invited) put("contact", normaliseContact(member.contactValue)) }
+                    .toString()
+            )
+        }
+        status
+    }
+
+    override suspend fun removeMember(groupId: String, userId: String): SyncStatus = withContext(Dispatchers.IO) {
+        requireMembership(groupId)
+        require(userId != account.id) { "You can't remove yourself here" }
+        require(groupDao.getMembersForGroup(groupId).any { it.userId == userId }) { "This member has already left" }
+        val status = nextStatus(groupId)
+        inTransaction {
+            groupDao.removeMember(groupId, userId)
+            groupDao.touchGroup(groupId, status, clock())
+            enqueue(
+                SyncAction.UPDATE, groupId,
+                JSONObject().put("op", "removeMember").put("groupId", groupId).put("userId", userId).toString()
+            )
+        }
+        status
+    }
+
+    /* ------------------------------------------------------------------ helpers */
+
+    private fun requireMembership(groupId: String) {
+        checkNotNull(groupDao.getGroupById(groupId)) { "This group isn't on your phone anymore" }
+        check(groupDao.getMembersForGroup(groupId).any { it.userId == account.id }) { "You're not a member of this group" }
+    }
+
+    /** A group that was never uploaded stays PENDING_INSERT so the processor creates it once. */
+    private fun nextStatus(groupId: String): SyncStatus =
+        if (groupDao.getGroupById(groupId)?.syncStatus == SyncStatus.PENDING_INSERT) SyncStatus.PENDING_INSERT
+        else SyncStatus.PENDING_UPDATE
+
+    private fun ensureAccountRow() {
+        if (userDao.getUserById(account.id) == null) {
+            userDao.upsertUser(UserEntity.fromDomain(account))
+        }
+    }
+
+    /** group_members has a foreign key to users, so invites get a placeholder user row. */
+    private fun ensureUserRow(member: MemberDraft) {
+        if (userDao.getUserById(member.key) != null) return
+        val entity = when (member) {
+            is MemberDraft.Existing -> UserEntity(
+                id = member.contact.userId,
+                email = member.contact.email,
+                displayName = member.contact.displayName,
+                phone = member.contact.phone?.let(::normaliseContact),
+                updatedAt = clock()
+            )
+            is MemberDraft.Invited -> {
+                val contact = normaliseContact(member.contactValue)
+                val isEmail = contactKind(member.contactValue) == ContactKind.Email
+                UserEntity(
+                    id = member.key,
+                    email = if (isEmail) contact else "",
+                    displayName = member.displayName,
+                    phone = if (isEmail) null else contact,
+                    syncStatus = SyncStatus.PENDING_INSERT,
+                    updatedAt = clock()
+                )
+            }
+        }
+        userDao.upsertUser(entity)
+    }
+
+    private fun enqueue(action: SyncAction, groupId: String, payload: String) {
+        val id = syncQueueDao.enqueue(
+            SyncQueueEntity(entityType = SyncEntityType.GROUP, entityId = groupId, action = action, payloadJson = payload)
+        )
+        check(id != -1L) { "Couldn't queue the change for syncing" }
+    }
+
+    private inline fun inTransaction(block: () -> Unit) {
+        val db = database.writableDatabase
+        db.beginTransaction()
+        try {
+            block()
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        // Re-notify after commit so observers never re-query a not-yet-committed state.
+        database.notifyTableChanged(
+            GroupsTable.TABLE_NAME, GroupMembersTable.TABLE_NAME, UsersTable.TABLE_NAME, SyncQueueTable.TABLE_NAME
+        )
+    }
+
+    private fun groupPayload(group: GroupEntity, members: List<GroupMemberEntity>): String = JSONObject()
+        .put("id", group.id)
+        .put("name", group.name)
+        .put("description", group.description ?: JSONObject.NULL)
+        .put("currency", group.currency)
+        .put("colourIndex", group.colourIndex)
+        .put("createdBy", group.createdBy)
+        .put("createdAt", group.createdAt)
+        .put("updatedAt", group.updatedAt)
+        .put("memberIds", JSONArray(members.filterNot { it.invited }.map { it.userId }))
+        .put("members", JSONArray(members.map(::memberJson)))
+        .toString()
+
+    private fun memberJson(member: GroupMemberEntity): JSONObject = JSONObject()
+        .put("userId", member.userId)
+        .put("displayName", userDao.getUserById(member.userId)?.displayName ?: JSONObject.NULL)
+        .put("role", member.role.name)
+        .put("joinedAt", member.joinedAt)
+        .put("invited", member.invited)
+
+    private fun UserEntity.toContact() = Contact(id, displayName, email, phone, memberColourIndex(id))
+
+    companion object {
+        const val INVITE_PREFIX = "invite:"
+        private const val GROUP_COLOUR_COUNT = 9
+
+        /** Stable avatar colour for a person (the account itself is always drawn in Green300). */
+        fun memberColourIndex(userId: String): Int = userId.hashCode().mod(GROUP_COLOUR_COUNT)
+    }
+}

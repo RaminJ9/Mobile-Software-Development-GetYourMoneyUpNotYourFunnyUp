@@ -9,6 +9,7 @@ data class UserEntity(
     val email: String,
     val displayName: String,
     val photoUrl: String? = null,
+    val phone: String? = null,
     val count: Int = 0,
     // Legacy aggregate retained for existing callers; individual preferences are authoritative.
     val notificationsEnabled: Boolean = true,
@@ -27,6 +28,7 @@ data class UserEntity(
         email = email,
         displayName = displayName,
         photoUrl = photoUrl,
+        phone = phone,
         count = count,
         notificationSettings = notificationSettings,
         syncStatus = syncStatus,
@@ -42,6 +44,7 @@ data class UserEntity(
             email = user.email,
             displayName = user.displayName,
             photoUrl = user.photoUrl,
+            phone = user.phone,
             count = user.count,
             notificationsEnabled = user.notificationSettings.let {
                 it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates
