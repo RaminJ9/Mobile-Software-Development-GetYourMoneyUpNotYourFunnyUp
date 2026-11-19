@@ -18,11 +18,11 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.GroupMemberEnt
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
 import com.example.getyourmoneyupnotyourfunnyup.model.GroupRole
 import com.example.getyourmoneyupnotyourfunnyup.model.User
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.shell.MainShell
+import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 
 /**
- * Debug-only way to see the logged-in app (the same [MainShell] MainActivity shows after login)
+ * Debug-only way to see the logged-in app (the same [AppShell] MainActivity shows after login)
  * without Firebase / google-services.json. Runs the real repositories on a throw-away in-memory
  * database seeded with sample people and groups.
  */
@@ -43,16 +43,12 @@ class Person2TestActivity : ComponentActivity() {
                             )
                         }
                         // The same shell MainActivity shows after login, on an in-memory database.
-                        MainShell(
+                        // Without a profile repository the Profile tab is read-only and logout does nothing.
+                        AppShell(
                             user = session.me,
+                            onLogout = {},
                             database = session.database,
-                            modifier = Modifier.weight(1f),
-                            profileContent = { profileModifier ->
-                                Box(profileModifier, contentAlignment = Alignment.Center) {
-                                    Text("Profile (the logged-in app shows the profile screen here)",
-                                        style = AppTypography.Body, color = AppColors.Ink600)
-                                }
-                            }
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
