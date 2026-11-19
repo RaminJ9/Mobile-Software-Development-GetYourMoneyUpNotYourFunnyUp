@@ -70,7 +70,7 @@ class ProfileDbTest {
             legacy.version = version
         }
         val migrated = open()
-        assertEquals(3, migrated.readableDatabase.version)
+        assertEquals(4, migrated.readableDatabase.version)
         val user = migrated.userDao.getUserById("u")!!.toDomain()
         assertEquals("Existing", user.displayName)
         assertEquals("u@test", user.email)
@@ -121,7 +121,7 @@ class ProfileDbTest {
             notificationSettings = NotificationSettings(false, true, false, true)
         )
         db.userDao.upsertUser(UserEntity.fromDomain(updated))
-        assertEquals(updated, db.userDao.getUserById("u")!!.toDomain())
+        assertEquals(updated.copy(phone = "+4587654321"), db.userDao.getUserById("u")!!.toDomain())
         assertLedgerPreserved(db)
     }
 
@@ -140,8 +140,10 @@ class ProfileDbTest {
         db.userDao.upsertUser(initial)
         assertNull(db.userDao.getUserById("u")!!.phoneNumber)
         db.userDao.upsertUser(initial.copy(phoneNumber = "+4512345678"))
+        assertEquals("+4512345678", db.userDao.getUserById("u")!!.phone)
         db.userDao.saveProfileAndEnqueue("u", com.example.getyourmoneyupnotyourfunnyup.model.ProfileChanges.fromUser(initial.toDomain()))
         assertNull(db.userDao.getUserById("u")!!.phoneNumber)
+        assertNull(db.userDao.getUserById("u")!!.phone)
         assertEquals(1, db.syncQueueDao.getAllPending().size)
     }
 

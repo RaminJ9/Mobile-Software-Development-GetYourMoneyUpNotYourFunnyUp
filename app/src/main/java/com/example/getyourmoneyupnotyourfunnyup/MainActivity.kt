@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -20,12 +21,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.RepositoryAuthSessionSource
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.FirestoreSyncQueueProcessor
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.SyncRunner
+import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.LoginScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.RegistrationScreen
-import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthForm
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthUiState
@@ -98,14 +103,38 @@ fun AppRoot(modifier: Modifier = Modifier) {
             }
         }
         is AuthUiState.SignedIn -> {
-            val profileRepository = remember(current.user.id, applicationContext) {
-                FirebaseProfileRepository(AppDatabase.getInstance(applicationContext))
+            val database = remember(applicationContext) {
+                AppDatabase.getInstance(applicationContext)
+            }
+            val profileRepository = remember(current.user.id, database) {
+                FirebaseProfileRepository(database)
+            }
+            val syncRunner = remember(current.user.id, database) {
+                val accountProvider = { Firebase.auth.currentUser?.uid ?: current.user.id }
+                val processor = FirestoreSyncQueueProcessor(
+                    database = database,
+                    currentAccountId = accountProvider
+                )
+                SyncRunner(
+                    processor = processor,
+                    currentAccount = accountProvider
+                )
+            }
+            LaunchedEffect(current.user.id, syncRunner) {
+                database.syncQueueDao.observePendingQueue().collect { pending ->
+                    if (pending.isNotEmpty()) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            syncRunner.run(current.user.id)
+                        }
+                    }
+                }
             }
             AppShell(
                 modifier = modifier,
                 user = current.user,
                 onLogout = authViewModel::logout,
-                profileRepository = profileRepository
+                profileRepository = profileRepository,
+                database = database
             )
         }
     }

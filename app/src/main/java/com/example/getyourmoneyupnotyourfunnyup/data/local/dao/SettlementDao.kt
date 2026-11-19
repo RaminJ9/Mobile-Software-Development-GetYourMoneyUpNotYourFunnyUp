@@ -32,6 +32,21 @@ class SettlementDao(private val database: AppDatabase) {
         database.notifyTableChanged(SettlementsTable.TABLE_NAME)
     }
 
+    fun getSettlementById(settlementId: String): SettlementEntity? {
+        val db = database.readableDatabase
+        db.query(
+            SettlementsTable.TABLE_NAME,
+            null,
+            "${SettlementsTable.COL_ID} = ?",
+            arrayOf(settlementId),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.toSettlementEntity() else null
+        }
+    }
+
     fun getSettlementsForGroup(groupId: String): List<SettlementEntity> {
         val db = database.readableDatabase
         val settlements = mutableListOf<SettlementEntity>()
@@ -59,6 +74,20 @@ class SettlementDao(private val database: AppDatabase) {
         val db = database.writableDatabase
         val values = ContentValues().apply {
             put(SettlementsTable.COL_STATUS, Converters.fromSettlementStatus(status))
+            put(SettlementsTable.COL_SYNC_STATUS, Converters.fromSyncStatus(syncStatus))
+        }
+        db.update(
+            SettlementsTable.TABLE_NAME,
+            values,
+            "${SettlementsTable.COL_ID} = ?",
+            arrayOf(settlementId)
+        )
+        database.notifyTableChanged(SettlementsTable.TABLE_NAME)
+    }
+
+    fun updateSyncStatus(settlementId: String, syncStatus: SyncStatus) {
+        val db = database.writableDatabase
+        val values = ContentValues().apply {
             put(SettlementsTable.COL_SYNC_STATUS, Converters.fromSyncStatus(syncStatus))
         }
         db.update(

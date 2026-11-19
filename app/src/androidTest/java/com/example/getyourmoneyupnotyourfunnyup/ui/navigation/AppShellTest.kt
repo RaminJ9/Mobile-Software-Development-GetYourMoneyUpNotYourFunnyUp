@@ -1,6 +1,10 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.navigation
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.test.platform.app.InstrumentationRegistry
+import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import org.junit.Before
+import org.junit.After
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -15,14 +19,24 @@ import org.junit.runner.RunWith
 class AppShellTest {
     @get:Rule val compose = createComposeRule()
     private val user = User("u", "ramin@example.com", "Ramin")
+    private lateinit var database: AppDatabase
+    private val visible = mutableStateOf(true)
+    @Before fun setup() { database = AppDatabase.createInMemory(InstrumentationRegistry.getInstrumentation().targetContext) }
+    @After fun cleanup() {
+        compose.runOnIdle { visible.value = false }
+        compose.waitForIdle()
+        database.close()
+    }
 
-    @Test fun startsOnHomeAndExposesHonestUnavailableDestinations() {
-        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme { AppShell(user, {}) } }
+    @Test fun startsOnHomeAndExposesGroupsAndRemainingUnavailableDestinations() {
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme { if (visible.value) AppShell(user, {}, database = database) } }
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Hi, Ramin").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Home tab").assertIsSelected()
         compose.onNodeWithText("Hi, Ramin").assertExists()
-        compose.onNodeWithText("Home data unavailable.", substring = true).assertExists()
+        compose.onNodeWithText("No groups yet").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("Groups tab").performClick()
-        compose.onNodeWithText("Groups are not connected yet.").assertExists()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Search groups").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Search groups").assertExists()
         compose.onNodeWithContentDescription("Scan tab").performClick()
         compose.onNodeWithText("Receipt scanning is not connected yet.").assertExists()
         compose.onNodeWithContentDescription("Activity tab").performClick()
@@ -37,7 +51,7 @@ class AppShellTest {
         var loggedOut = false
         compose.setContent {
             GetYourMoneyUpNotYourFunnyUpTheme {
-                if (signedIn.value) AppShell(user, { loggedOut = true; signedIn.value = false })
+                if (visible.value && signedIn.value) AppShell(user, { loggedOut = true; signedIn.value = false }, database = database)
             }
         }
         compose.onNodeWithContentDescription("Profile tab").performClick()

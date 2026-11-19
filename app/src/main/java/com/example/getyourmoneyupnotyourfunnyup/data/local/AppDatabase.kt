@@ -61,51 +61,42 @@ class AppDatabase internal constructor(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Two branches both shipped a "version 3" with different columns, so a version 3 database may be
+        // missing either set. Every column is therefore added only if it is missing, which makes this safe
+        // to run from any older version. SQLiteOpenHelper wraps onUpgrade in a transaction.
         val users = DatabaseContract.UsersTable
-        if (oldVersion < 2) {
-            // Some early v1 databases already included count; inspect rather than suppress SQL errors.
-            val hasCount = db.rawQuery("PRAGMA table_info(${users.TABLE_NAME})", null).use { cursor ->
-                val nameIndex = cursor.getColumnIndexOrThrow("name")
-                var found = false
-                while (cursor.moveToNext()) {
-                    if (cursor.getString(nameIndex) == users.COL_COUNT) found = true
-                }
-                found
-            }
-            if (!hasCount) {
-                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN ${users.COL_COUNT} INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-        if (oldVersion < 3) {
-            // SQLiteOpenHelper wraps onUpgrade in a transaction. No tables or records are replaced.
-            db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN ${users.COL_PHONE_NUMBER} TEXT")
-            for (column in listOf(users.COL_EXCLUDE_ALCOHOL, users.COL_EXCLUDE_MEAT)) {
-                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN $column INTEGER NOT NULL DEFAULT 0")
-            }
+        val groups = DatabaseContract.GroupsTable
+        val members = DatabaseContract.GroupMembersTable
+        if (oldVersion < 4) {
+            addColumnIfMissing(db, users.TABLE_NAME, users.COL_COUNT, "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, users.TABLE_NAME, users.COL_PHONE, "TEXT")
+            addColumnIfMissing(db, users.TABLE_NAME, users.COL_PHONE_NUMBER, "TEXT")
+            addColumnIfMissing(db, users.TABLE_NAME, users.COL_EXCLUDE_ALCOHOL, "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, users.TABLE_NAME, users.COL_EXCLUDE_MEAT, "INTEGER NOT NULL DEFAULT 0")
             for (column in listOf(
                 users.COL_NOTIFY_NEW_EXPENSES, users.COL_NOTIFY_CHANGED_EXPENSES,
                 users.COL_NOTIFY_PAYMENT_REMINDERS, users.COL_NOTIFY_SYNC_UPDATES
             )) {
-                db.execSQL("ALTER TABLE ${users.TABLE_NAME} ADD COLUMN $column INTEGER NOT NULL DEFAULT 1")
-                db.execSQL("UPDATE ${users.TABLE_NAME} SET $column = ${users.COL_NOTIFICATIONS_ENABLED}")
+                if (addColumnIfMissing(db, users.TABLE_NAME, column, "INTEGER NOT NULL DEFAULT 1")) {
+                    // New preference columns inherit the old single on/off switch.
+                    db.execSQL("UPDATE ${users.TABLE_NAME} SET $column = ${users.COL_NOTIFICATIONS_ENABLED}")
+                }
             }
-        }
-        if (oldVersion < 3) {
-            val table = DatabaseContract.UsersTable.TABLE_NAME
-            val alterations = listOf(
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_PHONE_NUMBER} TEXT NOT NULL DEFAULT ''",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_ALCOHOL} INTEGER NOT NULL DEFAULT 0",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_EXCLUDE_MEAT} INTEGER NOT NULL DEFAULT 0",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_NEW_EXPENSES} INTEGER NOT NULL DEFAULT 1",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_CHANGED_EXPENSES} INTEGER NOT NULL DEFAULT 1",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_PAYMENT_REMINDERS} INTEGER NOT NULL DEFAULT 1",
-                "ALTER TABLE $table ADD COLUMN ${DatabaseContract.UsersTable.COL_NOTIFY_SYNC_UPDATES} INTEGER NOT NULL DEFAULT 1"
-            )
-            for (sql in alterations) {
-                runCatching { db.execSQL(sql) }
-            }
+            addColumnIfMissing(db, groups.TABLE_NAME, groups.COL_COLOUR_INDEX, "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, groups.TABLE_NAME, groups.COL_IS_FAVOURITE, "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(db, members.TABLE_NAME, members.COL_INVITED, "INTEGER NOT NULL DEFAULT 0")
         }
         onCreate(db)
+    }
+
+    /** Adds [column] to [table] unless it already exists. Returns true when the column was added. */
+    private fun addColumnIfMissing(db: SQLiteDatabase, table: String, column: String, definition: String): Boolean {
+        val exists = db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }.any { it == column }
+        }
+        if (!exists) db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+        return !exists
     }
 
     /**

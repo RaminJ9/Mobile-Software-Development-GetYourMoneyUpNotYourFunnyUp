@@ -12,6 +12,7 @@ import org.json.JSONObject
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
 import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.phonesMatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -53,6 +54,8 @@ class UserDao(private val database: AppDatabase) {
             val next = previous.copy(
                 displayName = changes.displayName,
                 phoneNumber = changes.phoneNumber,
+                // Keep the incoming Groups lookup key aligned with profile edits, including clearing it.
+                phone = changes.phoneNumber?.takeIf { it.isNotBlank() }?.let(::normalisePhone),
                 excludeAlcohol = changes.excludeAlcohol,
                 excludeMeat = changes.excludeMeat,
                 notificationSettings = changes.notificationSettings,
@@ -78,7 +81,7 @@ class UserDao(private val database: AppDatabase) {
     }
 
     /** A delayed remote read cannot discard a pending local edit or roll back its revision. */
-    internal fun cacheRemoteUser(remote: UserEntity): UserEntity {
+    fun cacheRemoteUser(remote: UserEntity): UserEntity {
         val db = database.writableDatabase
         db.beginTransaction()
         val result: UserEntity
@@ -161,6 +164,48 @@ class UserDao(private val database: AppDatabase) {
         }
     }
 
+    /** Phone numbers are stored normalised (`+4522814017`), so callers pass a normalised value. */
+    fun getUserByPhone(phone: String): UserEntity? {
+        val normalisedQuery = normalisePhone(phone)
+        if (normalisedQuery.isBlank()) return null
+        val db = database.readableDatabase
+        db.query(
+            UsersTable.TABLE_NAME,
+            null,
+            "${UsersTable.COL_PHONE} = ? AND ${UsersTable.COL_ID} NOT LIKE 'invite:%'",
+            arrayOf(normalisedQuery),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            if (cursor.moveToFirst()) return cursor.toUserEntity()
+        }
+        return getAllUsers().firstOrNull { candidate ->
+            !candidate.id.startsWith("invite:") && (
+                phonesMatch(candidate.phone, normalisedQuery) ||
+                    phonesMatch(candidate.phoneNumber, normalisedQuery)
+                )
+        }
+    }
+
+    /** Case-insensitive email lookup used by "Add member" (emails are typed by hand). */
+    fun getUserByEmailIgnoringCase(email: String): UserEntity? {
+        val trimmed = email.trim()
+        if (trimmed.isEmpty()) return null
+        val db = database.readableDatabase
+        db.query(
+            UsersTable.TABLE_NAME,
+            null,
+            "LOWER(TRIM(${UsersTable.COL_EMAIL})) = LOWER(TRIM(?)) AND ${UsersTable.COL_ID} NOT LIKE 'invite:%'",
+            arrayOf(trimmed),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.toUserEntity() else null
+        }
+    }
+
     fun getAllUsers(): List<UserEntity> {
         val db = database.readableDatabase
         val users = mutableListOf<UserEntity>()
@@ -211,11 +256,22 @@ class UserDao(private val database: AppDatabase) {
         database.notifyTableChanged(UsersTable.TABLE_NAME)
     }
 
+    /** Same phone format as `normaliseContact` in the groups UI: optional leading `+`, then digits only. */
+    private fun normalisePhone(value: String): String {
+        val trimmed = value.trim()
+        return (if (trimmed.startsWith("+")) "+" else "") + trimmed.filter { it.isDigit() }
+    }
+
     private fun UserEntity.toContentValues(): ContentValues = ContentValues().apply {
         put(UsersTable.COL_ID, id)
         put(UsersTable.COL_EMAIL, email)
         put(UsersTable.COL_DISPLAY_NAME, displayName)
         put(UsersTable.COL_PHOTO_URL, photoUrl)
+        // COL_PHONE is the normalised lookup key used by "Add member"; COL_PHONE_NUMBER is the number as the
+        // user typed it on registration or in their profile. Derive the key from it so friends can find them.
+        val resolvedPhone = phoneNumber?.takeIf { it.isNotBlank() }?.let(::normalisePhone)
+            ?: phone?.takeIf { it.isNotBlank() }?.let(::normalisePhone)
+        put(UsersTable.COL_PHONE, resolvedPhone)
         put(UsersTable.COL_COUNT, count)
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationSettings.let {
             it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates
@@ -234,17 +290,19 @@ class UserDao(private val database: AppDatabase) {
     private fun Cursor.toUserEntity(): UserEntity {
         val photoIdx = getColumnIndexOrThrow(UsersTable.COL_PHOTO_URL)
         val countIdx = getColumnIndex(UsersTable.COL_COUNT)
-        val phoneIdx = getColumnIndexOrThrow(UsersTable.COL_PHONE_NUMBER)
+        val phoneIdx = getColumnIndex(UsersTable.COL_PHONE)
+        val phoneNumberIdx = getColumnIndexOrThrow(UsersTable.COL_PHONE_NUMBER)
         return UserEntity(
             id = getString(getColumnIndexOrThrow(UsersTable.COL_ID)),
             email = getString(getColumnIndexOrThrow(UsersTable.COL_EMAIL)),
             displayName = getString(getColumnIndexOrThrow(UsersTable.COL_DISPLAY_NAME)),
             photoUrl = if (isNull(photoIdx)) null else getString(photoIdx),
+            phone = if (phoneIdx >= 0 && !isNull(phoneIdx)) getString(phoneIdx) else null,
             count = if (countIdx >= 0 && !isNull(countIdx)) getInt(countIdx) else 0,
             notificationsEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0,
             syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(UsersTable.COL_SYNC_STATUS))),
             updatedAt = getLong(getColumnIndexOrThrow(UsersTable.COL_UPDATED_AT)),
-            phoneNumber = if (isNull(phoneIdx)) null else getString(phoneIdx).takeIf { it.isNotBlank() },
+            phoneNumber = if (isNull(phoneNumberIdx)) null else getString(phoneNumberIdx).takeIf { it.isNotBlank() },
             excludeAlcohol = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_ALCOHOL)) != 0,
             excludeMeat = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_MEAT)) != 0,
             notificationSettings = NotificationSettings(

@@ -47,9 +47,12 @@ internal object UserDocumentMapper {
         val dietary = data["dietaryRules"] as? Map<*, *>
         val reminders = settings?.get("paymentReminders") as? Boolean ?: true
         return User(
-            id = data["id"] as? String ?: uid,
-            email = data["email"] as? String ?: fallbackEmail,
-            displayName = data["displayName"] as? String ?: fallbackName,
+            id = (data["id"] as? String)?.takeIf { it.isNotBlank() } ?: uid,
+            email = (data["email"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: fallbackEmail,
+            displayName = (data["displayName"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (data["name"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (data["fullName"] as? String)?.takeIf { it.isNotBlank() }
+                ?: fallbackName,
             photoUrl = data["photoUrl"] as? String,
             count = (data["count"] as? Number)?.toInt() ?: 0,
             notificationSettings = NotificationSettings(
@@ -61,7 +64,8 @@ internal object UserDocumentMapper {
             ),
             syncStatus = SyncStatus.SYNCED,
             updatedAt = (data["updatedAt"] as? Number)?.toLong() ?: nowMillis,
-            phoneNumber = (data["phoneNumber"] as? String)?.takeIf { it.isNotBlank() },
+            phoneNumber = (data["phoneNumber"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (data["phone"] as? String)?.takeIf { it.isNotBlank() },
             excludeAlcohol = data["excludeAlcohol"] as? Boolean ?: (dietary?.get("excludeAlcohol") as? Boolean ?: false),
             excludeMeat = data["excludeMeat"] as? Boolean ?: (dietary?.get("excludeMeat") as? Boolean ?: false)
         )

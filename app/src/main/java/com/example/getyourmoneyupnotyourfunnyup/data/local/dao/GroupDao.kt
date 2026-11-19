@@ -89,6 +89,26 @@ class GroupDao(private val database: AppDatabase) {
         database.notifyTableChanged(GroupMembersTable.TABLE_NAME)
     }
 
+    /**
+     * Updates only the favourite flag. Uses UPDATE (not REPLACE) so the group's members are never
+     * touched by a delete-and-reinsert.
+     */
+    fun setFavourite(groupId: String, favourite: Boolean) {
+        val values = ContentValues().apply { put(GroupsTable.COL_IS_FAVOURITE, if (favourite) 1 else 0) }
+        database.writableDatabase.update(GroupsTable.TABLE_NAME, values, "${GroupsTable.COL_ID} = ?", arrayOf(groupId))
+        database.notifyTableChanged(GroupsTable.TABLE_NAME)
+    }
+
+    /** Marks the group as locally changed without rewriting the row (keeps members intact). */
+    fun touchGroup(groupId: String, status: SyncStatus, updatedAt: Long = System.currentTimeMillis()) {
+        val values = ContentValues().apply {
+            put(GroupsTable.COL_SYNC_STATUS, Converters.fromSyncStatus(status))
+            put(GroupsTable.COL_UPDATED_AT, updatedAt)
+        }
+        database.writableDatabase.update(GroupsTable.TABLE_NAME, values, "${GroupsTable.COL_ID} = ?", arrayOf(groupId))
+        database.notifyTableChanged(GroupsTable.TABLE_NAME)
+    }
+
     fun deleteGroup(groupId: String) {
         val db = database.writableDatabase
         db.delete(
@@ -137,7 +157,7 @@ class GroupDao(private val database: AppDatabase) {
         val db = database.readableDatabase
         val groups = mutableListOf<GroupEntity>()
         val sql = """
-            SELECT g.* FROM ${GroupsTable.TABLE_NAME} g
+            SELECT g.* FROM "${GroupsTable.TABLE_NAME}" g
             INNER JOIN ${GroupMembersTable.TABLE_NAME} gm
                 ON g.${GroupsTable.COL_ID} = gm.${GroupMembersTable.COL_GROUP_ID}
             WHERE gm.${GroupMembersTable.COL_USER_ID} = ?
@@ -170,6 +190,29 @@ class GroupDao(private val database: AppDatabase) {
         return members
     }
 
+    /**
+     * "People you've split with": registered users who share at least one group with [userId],
+     * most recently joined first. Invites are excluded because they have no account yet.
+     */
+    fun getCoMemberIds(userId: String): List<String> {
+        val sql = """
+            SELECT other.${GroupMembersTable.COL_USER_ID}, MAX(other.${GroupMembersTable.COL_JOINED_AT}) AS last_joined
+            FROM ${GroupMembersTable.TABLE_NAME} mine
+            INNER JOIN ${GroupMembersTable.TABLE_NAME} other
+                ON mine.${GroupMembersTable.COL_GROUP_ID} = other.${GroupMembersTable.COL_GROUP_ID}
+            WHERE mine.${GroupMembersTable.COL_USER_ID} = ?
+                AND other.${GroupMembersTable.COL_USER_ID} != ?
+                AND other.${GroupMembersTable.COL_INVITED} = 0
+            GROUP BY other.${GroupMembersTable.COL_USER_ID}
+            ORDER BY last_joined DESC
+        """.trimIndent()
+        val ids = mutableListOf<String>()
+        database.readableDatabase.rawQuery(sql, arrayOf(userId, userId)).use { cursor ->
+            while (cursor.moveToNext()) ids.add(cursor.getString(0))
+        }
+        return ids
+    }
+
     fun updateSyncStatus(groupId: String, status: SyncStatus) {
         val db = database.writableDatabase
         val values = ContentValues().apply {
@@ -194,6 +237,8 @@ class GroupDao(private val database: AppDatabase) {
         put(GroupsTable.COL_CREATED_AT, createdAt)
         put(GroupsTable.COL_UPDATED_AT, updatedAt)
         put(GroupsTable.COL_SYNC_STATUS, Converters.fromSyncStatus(syncStatus))
+        put(GroupsTable.COL_COLOUR_INDEX, colourIndex)
+        put(GroupsTable.COL_IS_FAVOURITE, if (isFavourite) 1 else 0)
     }
 
     private fun GroupMemberEntity.toContentValues(): ContentValues = ContentValues().apply {
@@ -201,10 +246,13 @@ class GroupDao(private val database: AppDatabase) {
         put(GroupMembersTable.COL_USER_ID, userId)
         put(GroupMembersTable.COL_ROLE, Converters.fromGroupRole(role))
         put(GroupMembersTable.COL_JOINED_AT, joinedAt)
+        put(GroupMembersTable.COL_INVITED, if (invited) 1 else 0)
     }
 
     private fun Cursor.toGroupEntity(): GroupEntity {
         val descIdx = getColumnIndexOrThrow(GroupsTable.COL_DESCRIPTION)
+        val colourIdx = getColumnIndex(GroupsTable.COL_COLOUR_INDEX)
+        val favouriteIdx = getColumnIndex(GroupsTable.COL_IS_FAVOURITE)
         return GroupEntity(
             id = getString(getColumnIndexOrThrow(GroupsTable.COL_ID)),
             name = getString(getColumnIndexOrThrow(GroupsTable.COL_NAME)),
@@ -213,7 +261,9 @@ class GroupDao(private val database: AppDatabase) {
             createdBy = getString(getColumnIndexOrThrow(GroupsTable.COL_CREATED_BY)),
             createdAt = getLong(getColumnIndexOrThrow(GroupsTable.COL_CREATED_AT)),
             updatedAt = getLong(getColumnIndexOrThrow(GroupsTable.COL_UPDATED_AT)),
-            syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(GroupsTable.COL_SYNC_STATUS)))
+            syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(GroupsTable.COL_SYNC_STATUS))),
+            colourIndex = if (colourIdx >= 0 && !isNull(colourIdx)) getInt(colourIdx) else 0,
+            isFavourite = favouriteIdx >= 0 && !isNull(favouriteIdx) && getInt(favouriteIdx) != 0
         )
     }
 
@@ -221,6 +271,7 @@ class GroupDao(private val database: AppDatabase) {
         groupId = getString(getColumnIndexOrThrow(GroupMembersTable.COL_GROUP_ID)),
         userId = getString(getColumnIndexOrThrow(GroupMembersTable.COL_USER_ID)),
         role = Converters.toGroupRole(getString(getColumnIndexOrThrow(GroupMembersTable.COL_ROLE))),
-        joinedAt = getLong(getColumnIndexOrThrow(GroupMembersTable.COL_JOINED_AT))
+        joinedAt = getLong(getColumnIndexOrThrow(GroupMembersTable.COL_JOINED_AT)),
+        invited = getColumnIndex(GroupMembersTable.COL_INVITED).let { it >= 0 && !isNull(it) && getInt(it) != 0 }
     )
 }
