@@ -349,3 +349,14 @@ com.example.getyourmoneyupnotyourfunnyup/
 
 ### Dependency Management
 - Keep all dependencies declared in `gradle/libs.versions.toml`. Never hardcode library versions inside module build scripts.
+
+### RaminJaved Working
+When working with Ramin Javed, read and follow documentsR/ and the responsibility distribution document.
+
+Only implement features assigned to Person 4 (Ramin Javed) and Person 1 (Gustav).
+
+Do not implement features belonging to the other three team members. You may inspect their code and propose minimal shared interfaces when necessary, but do not modify their modules or shared contracts without explicit approval.
+
+This is a university project with simulated payments. Do not integrate real payment processing or add unnecessary complexity.
+
+Before implementing substantial changes, present a plan and wait for approval. Work on one approved task at a time.

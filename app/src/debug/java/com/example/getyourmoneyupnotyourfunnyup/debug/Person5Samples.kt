@@ -5,7 +5,13 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.*
 
 internal fun sampleHome(): HomeData {
     val now = System.currentTimeMillis()
-    val user = User("sample-you", "sample@example.invalid", "Victor")
+    val user = User(
+        id = "sample-you",
+        email = "victor@example.dk",
+        displayName = "Victor Munk",
+        phoneNumber = "+45 12 34 56 78",
+        excludeAlcohol = true, excludeMeat = false
+    )
     val groups = listOf("Ski trip Åre", "Friday Bar crew", "Padel Tuesdays", "Kollegiet 4. sal")
         .mapIndexed { index, name ->
             val id = "sample-$index"

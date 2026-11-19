@@ -1,36 +1,46 @@
 package com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppColors
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppSpacing
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppTouchTargets
+import com.example.getyourmoneyupnotyourfunnyup.ui.theme.AppTypography
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 
 /**
- * S1 Login Screen: Authenticates existing users and fetches their profile + counter from Firestore.
+ * S1 · Log in (`docs/HiFi.html`):
+ * - Brand logo + "Welcome back" + "Log in to see your groups and who owes what."
+ * - Email & Password inputs (`52dp` height, `16dp` radius) with Show/Hide password toggle
+ * - "Forgot password?" inline link
+ * - Primary "Log in" button (`56dp`) and "New here? Create an account" mode switch
  */
 @Composable
 fun LoginScreen(
@@ -42,99 +52,112 @@ fun LoginScreen(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
-    onNavigateToRegister: () -> Unit
+    onNavigateToRegister: () -> Unit,
+    infoMessage: String? = null,
+    onForgotPasswordClick: () -> Unit = {}
 ) {
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(AppColors.White)
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = AppSpacing.Space24,
+                end = AppSpacing.Space24,
+                bottom = AppSpacing.ScreenBottomPadding
+            )
     ) {
-        Text(
-            text = "Welcome Back",
-            style = MaterialTheme.typography.headlineMedium
+        AuthBrandHeader(
+            title = "Welcome back",
+            subtitle = "Log in to see your groups and who owes what."
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Sign in to load your profile and saved counter",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
 
         if (!errorMessage.isNullOrBlank()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            AuthBanner(
+                message = errorMessage,
+                isError = true,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+        } else if (!infoMessage.isNullOrBlank()) {
+            AuthBanner(
+                message = infoMessage,
+                isError = false,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
         }
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = onEmailChange,
-            label = { Text("Email") },
-            singleLine = true,
-            enabled = !isLoading,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = onPasswordChange,
-            label = { Text("Password") },
-            singleLine = true,
-            enabled = !isLoading,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onLoginClick,
-            enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            HiFiLabeledTextField(
+                label = "Email",
+                value = email,
+                onValueChange = onEmailChange,
+                placeholder = "victor@example.dk",
+                enabled = !isLoading,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
                 )
-            } else {
-                Text("Login")
-            }
-        }
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            HiFiLabeledTextField(
+                label = "Password",
+                value = password,
+                onValueChange = onPasswordChange,
+                placeholder = "••••••••",
+                enabled = !isLoading,
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (email.isNotBlank() && password.isNotBlank() && !isLoading) {
+                            onLoginClick()
+                        }
+                    }
+                ),
+                trailingIcon = {
+                    PasswordVisibilityToggleButton(
+                        passwordVisible = passwordVisible,
+                        onToggle = { passwordVisible = !passwordVisible }
+                    )
+                }
+            )
+        }
 
         TextButton(
-            onClick = onNavigateToRegister,
-            enabled = !isLoading
+            onClick = onForgotPasswordClick,
+            enabled = !isLoading,
+            modifier = Modifier
+                .align(Alignment.End)
+                .heightIn(min = AppTouchTargets.MinTouchTarget)
         ) {
-            Text("Don't have an account? Register")
+            Text(
+                text = "Forgot password?",
+                style = AppTypography.ButtonInline,
+                color = AppColors.Green700
+            )
         }
+
+        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(AppSpacing.Space16))
+
+        AuthBottomActions(
+            primaryLabel = "Log in",
+            isLoading = isLoading,
+            primaryEnabled = email.isNotBlank() && password.isNotBlank(),
+            onPrimaryClick = onLoginClick,
+            switchLeadText = "New here?",
+            switchActionText = "Create an account",
+            onSwitchModeClick = onNavigateToRegister
+        )
     }
 }
 
@@ -147,10 +170,10 @@ fun LoginScreen(
 @Composable
 private fun LoginScreenPreview() {
     GetYourMoneyUpNotYourFunnyUpTheme {
-        Surface {
+        Surface(color = AppColors.White) {
             LoginScreen(
-                email = "alex@example.com",
-                password = "password123",
+                email = "victor@example.dk",
+                password = "sommerferie26",
                 isLoading = false,
                 errorMessage = null,
                 onEmailChange = {},
