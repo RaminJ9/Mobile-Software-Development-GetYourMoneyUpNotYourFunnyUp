@@ -76,7 +76,8 @@ internal fun GroupDetailRoute(
     membersVm: GroupMembersViewModel,
     balancesVm: BalanceViewModel,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAddExpense: () -> Unit = {}
 ) {
     val header by remember(groupId) { session.groupHeader(groupId) }.collectAsStateWithLifecycle(null)
     val membersState by membersVm.state.collectAsStateWithLifecycle()
@@ -134,7 +135,11 @@ internal fun GroupDetailRoute(
                     is GroupMembersUiState.Error -> Text(state.message, style = AppTypography.Body, color = AppColors.Ink600)
                     GroupMembersUiState.Loading -> CircularProgressIndicator(color = AppColors.Green700)
                 }
-                GroupSection.Activity -> SectionPlaceholder("Expenses and payments for this group will show up here.")
+                GroupSection.Activity -> {
+                    // Opens the scan flow for this group (scan a receipt or type the expense in).
+                    DashboardButton("+ Add expense", onAddExpense, Modifier.fillMaxWidth())
+                    SectionPlaceholder("Expenses and payments for this group will show up here.")
+                }
                 GroupSection.Balances -> BalanceRoute(balancesVm, onBack, modifier = Modifier.weight(1f), showHeader = false)
             }
         }

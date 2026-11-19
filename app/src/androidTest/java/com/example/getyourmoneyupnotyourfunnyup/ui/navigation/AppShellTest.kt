@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.After
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
@@ -87,13 +88,51 @@ class AppShellTest {
         compose.onNodeWithContentDescription("Groups tab").performClick()
         compose.waitUntil(10000) { compose.onAllNodesWithText("Search groups").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Search groups").assertExists()
+        // Scan opens full screen over the current tab, and Back returns to it.
         compose.onNodeWithContentDescription("Scan tab").performClick()
-        compose.onNodeWithText("Receipt scanning is not connected yet.").assertExists()
+        compose.onNodeWithContentDescription("Groups tab").assertDoesNotExist()
+        Espresso.pressBack()
+        compose.onNodeWithContentDescription("Groups tab").assertIsSelected()
         compose.onNodeWithContentDescription("Activity tab").performClick()
         compose.onNodeWithText("Activity history unavailable").assertExists()
         compose.onNodeWithText("No activity yet").assertDoesNotExist()
         compose.onNodeWithContentDescription("Profile tab").performClick()
         compose.onNodeWithText(user.email).assertExists()
+    }
+
+    /** "Type it in" on the permission step, or the pencil on the camera, depending on the camera permission. */
+    private fun typeItIn() {
+        fun has(text: String) = compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        fun hasIcon(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
+        compose.waitUntil(10000) { has("Type it in manually instead") || hasIcon("Type in manually") }
+        if (has("Type it in manually instead")) compose.onNodeWithText("Type it in manually instead").performClick()
+        else compose.onNodeWithContentDescription("Type in manually").performClick()
+    }
+
+    @Test fun addExpenseFromAGroup_savesItForThatGroupOnThePhone() {
+        seedGroup(withExpense = false)
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            if (visible.value) AppShell(user, {}, database = database, currentAccountId = { user.id })
+        } }
+        compose.onNodeWithContentDescription("Groups tab").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Trip").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Trip").performClick()
+        compose.onNodeWithText("Activity").performClick()
+        compose.onNodeWithText("+ Add expense").performClick()
+
+        typeItIn()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Check items").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Trip").assertExists() // the group it was opened from
+        compose.onNodeWithContentDescription("Price in kroner").performTextInput("120")
+        compose.onNodeWithText("Next: who had what").performClick()
+        compose.onNodeWithText("Save expense \u00b7 120,00 kr").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Expense saved").fetchSemanticsNodes().isNotEmpty() }
+
+        val saved = database.expenseDao.getActiveExpensesForGroup("g").single()
+        assertEquals(12_000L, saved.amountCents)
+        assertEquals(SyncStatus.PENDING_INSERT, saved.syncStatus)
+        assertEquals(listOf(6_000L, 6_000L), database.expenseDao.getSplitsForExpense(saved.id).map { it.amountOwedCents })
+        assertEquals(1, database.syncQueueDao.getAllPending().size)
     }
 
     @Test fun logoutRemovesShellAndAnotherSessionStartsOnHome() {

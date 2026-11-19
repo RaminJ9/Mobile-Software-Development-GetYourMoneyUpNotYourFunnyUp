@@ -15,6 +15,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.MlKitReceiptScanner
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptPhotoStore
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.ExpenseRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalScanSource
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectionState
+import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectivityObserver
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.ProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalBalanceRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalPaymentRepository
@@ -31,6 +37,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.CreateGroupRou
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.GroupsRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.home.HomeRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.profile.ProfileRoute
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.scan.ScanRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ActivityViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.CreateGroupViewModel
@@ -38,13 +45,14 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupMembersViewMod
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileViewModel
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ScanViewModel
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /**
- * Navigation container for the signed-in app: the bottom bar tabs plus the group screens pushed on
- * top of them (Create group, Group detail), which hide the bottom bar like the HiFi.
- * Missing teammate data (activity events, scanning) is kept explicitly unavailable.
+ * Navigation container for the signed-in app: the bottom bar tabs plus the screens pushed on top of
+ * them (Create group, Group detail, Scan), which hide the bottom bar like the HiFi.
+ * Missing teammate data (activity events) is kept explicitly unavailable.
  *
  * [database] defaults to the app database; the debug sandbox passes an in-memory one.
  */
@@ -67,6 +75,9 @@ fun AppShell(
         var creatingGroup by rememberSaveable { mutableStateOf(false) }
         // Bumped on every "Create group" so each visit starts with an empty form.
         var createRun by rememberSaveable { mutableIntStateOf(0) }
+        // The scan flow is full screen on top of the current screen, optionally for one group.
+        var scanning by rememberSaveable { mutableStateOf(false) }
+        var scanGroupId by rememberSaveable { mutableStateOf<String?>(null) }
         val owner = remember {
             object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
         }
@@ -93,10 +104,12 @@ fun AppShell(
 
         val openGroup: (String) -> Unit = { openGroupId = it }
         val createGroup: () -> Unit = { createRun++; creatingGroup = true }
-        val showingOverlay = creatingGroup || openGroupId != null
+        val startScan: (String?) -> Unit = { scanGroupId = it; scanning = true }
+        val showingOverlay = creatingGroup || openGroupId != null || scanning
 
         BackHandler(enabled = showingOverlay || selected != AppTab.Home) {
             when {
+                scanning -> scanning = false
                 creatingGroup -> creatingGroup = false
                 openGroupId != null -> openGroupId = null
                 else -> selected = AppTab.Home
@@ -109,12 +122,45 @@ fun AppShell(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             containerColor = AppColors.White,
             bottomBar = {
-                if (!showingOverlay) BottomNavBar(selectedTab = selected, onSelectTab = { selected = it })
+                if (!showingOverlay) BottomNavBar(
+                    selectedTab = selected,
+                    onSelectTab = { if (it == AppTab.Scan) startScan(null) else selected = it }
+                )
             }
         ) { padding ->
             val contentModifier = Modifier.padding(padding).fillMaxSize()
             val groupId = openGroupId
             when {
+                scanning -> {
+                    // Scoped to this visit: leaving the flow clears its ViewModel, which deletes an unsaved photo.
+                    val scanOwner = remember {
+                        object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
+                    }
+                    DisposableEffect(scanOwner) { onDispose { scanOwner.viewModelStore.clear() } }
+                    val photoStore = remember(applicationContext) { ReceiptPhotoStore(applicationContext) }
+                    val scanViewModel: ScanViewModel = viewModel(
+                        viewModelStoreOwner = scanOwner,
+                        factory = viewModelFactory {
+                            initializer {
+                                ScanViewModel(
+                                    source = LocalScanSource(localDatabase, groups.repository, ExpenseRepository(localDatabase)),
+                                    meId = user.id,
+                                    initialGroupId = scanGroupId,
+                                    scanner = MlKitReceiptScanner(applicationContext),
+                                    photos = photoStore,
+                                    online = ConnectivityObserver(applicationContext).observe().map { it != ConnectionState.Offline },
+                                )
+                            }
+                        }
+                    )
+                    ScanRoute(
+                        scanViewModel,
+                        photoStore,
+                        onClose = { scanning = false },
+                        // MainActivity already keeps the app clear of the system bars.
+                        modifier = contentModifier.consumeWindowInsets(WindowInsets.systemBars)
+                    )
+                }
                 creatingGroup -> {
                     val createViewModel: CreateGroupViewModel = viewModel(
                         viewModelStoreOwner = owner,
@@ -172,7 +218,7 @@ fun AppShell(
                         }
                     )
                     GroupDetailRoute(groups, groupId, membersViewModel, balancesViewModel,
-                        onBack = { openGroupId = null }, modifier = contentModifier)
+                        onBack = { openGroupId = null }, onAddExpense = { startScan(groupId) }, modifier = contentModifier)
                 }
                 else -> when (selected) {
                     AppTab.Home -> {
@@ -206,19 +252,12 @@ fun AppShell(
                         GroupsRoute(groupsViewModel, onCreateGroup = createGroup, onOpenGroup = openGroup, modifier = contentModifier)
                     }
                     AppTab.Activity -> ActivityRoute(activityViewModel, modifier = contentModifier)
-                    AppTab.Scan -> UnavailableDestination("Scan", "Receipt scanning is not connected yet.", modifier = contentModifier)
+                    // Scan opens as a full-screen flow above (see startScan), never as a tab.
+                    AppTab.Scan -> Unit
                     AppTab.Profile -> ProfileRoute(profileViewModel, onLogout, modifier = contentModifier)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun UnavailableDestination(title: String, message: String, modifier: Modifier = Modifier) {
-    Column(modifier.padding(AppSpacing.Space16), verticalArrangement = Arrangement.spacedBy(AppSpacing.Space16)) {
-        Text(title, style = AppTypography.ScreenTitleLarge, color = AppColors.Ink900)
-        Text(message, style = AppTypography.Body, color = AppColors.Ink600)
     }
 }
 
