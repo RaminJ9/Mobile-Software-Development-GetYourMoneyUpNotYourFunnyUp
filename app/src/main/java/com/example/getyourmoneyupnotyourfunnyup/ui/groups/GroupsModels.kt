@@ -203,7 +203,31 @@ fun inviteDisplayName(value: String): String {
 
 fun Contact.matchesContact(query: String): Boolean {
     val needle = normaliseContact(query)
-    return normaliseContact(email) == needle || (phone != null && normaliseContact(phone) == needle)
+    return normaliseContact(email) == needle || (phone != null && phonesMatch(phone, needle))
+}
+
+/**
+ * Compares two phone strings after stripping spaces/formatting, also treating Danish 8-digit
+ * national numbers with or without a `+45` / `0045` country code prefix as matching.
+ */
+fun phonesMatch(first: String?, second: String?): Boolean {
+    if (first.isNullOrBlank() || second.isNullOrBlank()) return false
+    val a = normalisePhoneDigits(first)
+    val b = normalisePhoneDigits(second)
+    if (a.isEmpty() || b.isEmpty()) return false
+    return a == b || stripDanishCountryCode(a) == stripDanishCountryCode(b)
+}
+
+private fun normalisePhoneDigits(value: String): String {
+    val trimmed = value.trim()
+    return (if (trimmed.startsWith("+")) "+" else "") + trimmed.filter { it.isDigit() }
+}
+
+private fun stripDanishCountryCode(normalised: String): String = when {
+    normalised.startsWith("+45") && normalised.length == 11 -> normalised.removePrefix("+45")
+    normalised.startsWith("0045") && normalised.length == 12 -> normalised.removePrefix("0045")
+    normalised.startsWith("45") && normalised.length == 10 -> normalised.removePrefix("45")
+    else -> normalised
 }
 
 /* ---------------------------------------------------------------------------------------------

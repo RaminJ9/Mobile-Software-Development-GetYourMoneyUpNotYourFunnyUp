@@ -217,8 +217,9 @@ class GroupsViewModelsTest {
     }
 
     @Test fun addMemberFindsUserOrInvitesUnknownPerson() = runTest(dispatcher) {
+        val source = MutableStateFlow(membersData())
         val added = mutableListOf<MemberDraft>()
-        val vm = membersVm(added = added)
+        val vm = membersVm(source = source, added = added)
         vm.openAddMember()
         vm.setAddQuery("mads.h@mail.dk"); vm.lookUpMember()
         assertEquals(listOf<MemberDraft>(MemberDraft.Existing(mads)), added)
@@ -227,6 +228,18 @@ class GroupsViewModelsTest {
         vm.sendInvite()
         assertEquals(MemberDraft.Invited("karl@mail.dk"), added.last())
         assertEquals(AddMemberPanel(), vm.current().addPanel)
+        assertEquals(SyncStatus.PENDING_UPDATE, vm.current().lastWrite)
+
+        // Once the background sync processor marks the group SYNCED in SQLite, lastWrite clears to SYNCED
+        source.value = membersData().copy(
+            members = membersData().members + GroupMemberItem(
+                userId = "invite:karl@mail.dk",
+                displayName = "karl",
+                invited = true,
+                syncStatus = SyncStatus.SYNCED
+            )
+        )
+        assertEquals(SyncStatus.SYNCED, vm.current().lastWrite)
     }
 
     @Test fun withoutWriteServicesTheTabIsReadOnly() = runTest(dispatcher) {

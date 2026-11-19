@@ -106,14 +106,18 @@ class CreateGroupViewModel(
             edit { it.copy(lookup = MemberLookupState.Invalid) }
             return
         }
-        if (current.currentUser.email.isNotBlank() && normaliseContact(current.currentUser.email) == normaliseContact(query)) {
+        val ownPhone = current.currentUser.phone ?: current.currentUser.phoneNumber
+        if ((current.currentUser.email.isNotBlank() && normaliseContact(current.currentUser.email) == normaliseContact(query)) ||
+            (ownPhone != null && contactKind(query) == ContactKind.Phone && phonesMatch(ownPhone, query))
+        ) {
             edit { it.copy(lookup = MemberLookupState.AlreadyAdded("You")) }
             return
         }
         current.members.firstOrNull { member ->
             when (member) {
                 is MemberDraft.Existing -> member.contact.matchesContact(query)
-                is MemberDraft.Invited -> normaliseContact(member.contactValue) == normaliseContact(query)
+                is MemberDraft.Invited -> normaliseContact(member.contactValue) == normaliseContact(query) ||
+                    (contactKind(query) == ContactKind.Phone && phonesMatch(member.contactValue, query))
             }
         }?.let { existing ->
             edit { it.copy(lookup = MemberLookupState.AlreadyAdded(existing.displayName)) }

@@ -68,6 +68,9 @@ class GroupsPresentationTest {
         assertEquals("+4522814017", normaliseContact("+45 22 81 40 17"))
         assertEquals("anna.b", inviteDisplayName("anna.b@mail.dk"))
         assertTrue(Contact("j", "Jonas", "", "+45 22 81 40 17").matchesContact("+4522814017"))
+        assertTrue(Contact("j", "Jonas", "", "+45 22 81 40 17").matchesContact("22 81 40 17"))
+        assertTrue(phonesMatch("+45 22 81 40 17", "22814017"))
+        assertTrue(phonesMatch("22 81 40 17", "+4522814017"))
         assertEquals(MemberDraft.Invited("Anna@Mail.dk").key, MemberDraft.Invited("anna@mail.dk ").key)
     }
 

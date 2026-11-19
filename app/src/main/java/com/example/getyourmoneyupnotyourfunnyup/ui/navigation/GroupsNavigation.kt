@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.GroupRepository
@@ -26,6 +27,7 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * Account-scoped groups repository and flows used by [AppShell]. Everything is read from the local
@@ -34,6 +36,12 @@ import kotlinx.coroutines.flow.map
 internal class GroupsSession(database: AppDatabase, private val user: User) : ViewModel() {
     val repository = GroupRepository(database, user)
     val groupsFlow = repository.observeGroups()
+
+    init {
+        viewModelScope.launch {
+            repository.syncRemoteUsers()
+        }
+    }
 
     fun groupHeader(groupId: String): Flow<GroupHeader?> = groupsFlow.map { groups ->
         groups.firstOrNull { it.group.id == groupId }?.let { g ->

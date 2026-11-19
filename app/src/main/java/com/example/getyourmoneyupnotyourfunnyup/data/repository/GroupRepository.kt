@@ -14,18 +14,140 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntit
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
 import com.example.getyourmoneyupnotyourfunnyup.data.remote.GroupDocumentMapper
 import com.example.getyourmoneyupnotyourfunnyup.data.remote.SyncPayloadJson
+import com.example.getyourmoneyupnotyourfunnyup.data.remote.UserDocumentMapper
 import com.example.getyourmoneyupnotyourfunnyup.model.GroupRole
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.DashboardGroup
 import com.example.getyourmoneyupnotyourfunnyup.ui.groups.*
+import com.google.android.gms.tasks.Task
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.firestore
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.util.UUID
+
+/**
+ * Abstraction for looking up registered users in the remote database (Cloud Firestore `/users`)
+ * when a contact is not yet cached in the local SQLite `users` table.
+ */
+interface RemoteUserDirectory {
+    suspend fun findByContact(query: String, kind: ContactKind): User?
+    suspend fun fetchAllUsers(): List<User> = emptyList()
+}
+
+/**
+ * Queries Cloud Firestore `/users` by email or phone number, falling back to a case-insensitive /
+ * phone-normalised scan of `/users` documents so formatting or casing differences never hide an
+ * existing user. Safely returns `null` / empty when offline or when Firebase is not initialized.
+ */
+class FirestoreRemoteUserDirectory(
+    private val firestoreProvider: () -> FirebaseFirestore? = {
+        runCatching { Firebase.firestore }.getOrNull()
+    }
+) : RemoteUserDirectory {
+
+    override suspend fun findByContact(query: String, kind: ContactKind): User? {
+        val firestore = firestoreProvider() ?: return null
+        val trimmed = query.trim()
+        if (trimmed.isEmpty() || kind == ContactKind.Invalid) return null
+        return try {
+            val usersCol = firestore.collection(AuthRepository.USERS_COLLECTION)
+            when (kind) {
+                ContactKind.Email -> {
+                    val exact = usersCol.whereEqualTo("email", trimmed).limit(1).get().awaitOrNull()
+                        ?.documents?.firstOrNull { !it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                    val lower = if (exact == null && trimmed.lowercase() != trimmed) {
+                        usersCol.whereEqualTo("email", trimmed.lowercase()).limit(1).get().awaitOrNull()
+                            ?.documents?.firstOrNull { !it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                    } else null
+                    val matched = exact ?: lower ?: usersCol.get().awaitOrNull()?.documents?.firstOrNull { doc ->
+                        !doc.id.startsWith(GroupRepository.INVITE_PREFIX) &&
+                            doc.getString("email")?.trim()?.equals(trimmed, ignoreCase = true) == true
+                    }
+                    matched?.toRemoteUser()
+                }
+                ContactKind.Phone -> {
+                    val normalised = normaliseContact(trimmed)
+                    val byRawPhoneNumber = usersCol.whereEqualTo("phoneNumber", trimmed).limit(1).get().awaitOrNull()
+                        ?.documents?.firstOrNull { !it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                    val byNormalisedPhoneNumber = if (byRawPhoneNumber == null && normalised != trimmed) {
+                        usersCol.whereEqualTo("phoneNumber", normalised).limit(1).get().awaitOrNull()
+                            ?.documents?.firstOrNull { !it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                    } else null
+                    val byPhoneField = if (byRawPhoneNumber == null && byNormalisedPhoneNumber == null) {
+                        usersCol.whereEqualTo("phone", normalised).limit(1).get().awaitOrNull()
+                            ?.documents?.firstOrNull { !it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                    } else null
+                    val matched = byRawPhoneNumber ?: byNormalisedPhoneNumber ?: byPhoneField
+                        ?: usersCol.get().awaitOrNull()?.documents?.firstOrNull { doc ->
+                            !doc.id.startsWith(GroupRepository.INVITE_PREFIX) && (
+                                phonesMatch(doc.getString("phoneNumber"), normalised) ||
+                                    phonesMatch(doc.getString("phone"), normalised)
+                                )
+                        }
+                    matched?.toRemoteUser()
+                }
+                ContactKind.Invalid -> null
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override suspend fun fetchAllUsers(): List<User> {
+        val firestore = firestoreProvider() ?: return emptyList()
+        return try {
+            firestore.collection(AuthRepository.USERS_COLLECTION).get().awaitOrNull()
+                ?.documents
+                .orEmpty()
+                .filterNot { it.id.startsWith(GroupRepository.INVITE_PREFIX) }
+                .mapNotNull { doc -> runCatching { doc.toRemoteUser() }.getOrNull() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun DocumentSnapshot.toRemoteUser(): User {
+        val raw = data.orEmpty()
+        val email = (raw["email"] as? String)?.trim().orEmpty()
+        val fallbackName = email.substringBefore("@").ifBlank { id }
+        return UserDocumentMapper.fromMap(
+            data = raw,
+            uid = id,
+            fallbackEmail = email,
+            fallbackName = fallbackName
+        )
+    }
+
+    private suspend fun <T> Task<T>.awaitOrNull(): T? = try {
+        suspendCancellableCoroutine { continuation ->
+            addOnSuccessListener { result ->
+                if (continuation.isActive) continuation.resume(result)
+            }.addOnFailureListener { error ->
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+}
 
 /**
  * Offline-first repository for groups & members (Person 2: S4, S5, S8c, S-Warn).
@@ -41,7 +163,8 @@ class GroupRepository(
     private val account: User,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
-    private val onEnqueued: (() -> Unit)? = null
+    private val onEnqueued: (() -> Unit)? = null,
+    private val remoteUsers: RemoteUserDirectory? = FirestoreRemoteUserDirectory()
 ) : GroupFavouriteActions, ContactDirectory, GroupCreationActions, MemberActions, MemberRemovalActions {
 
     private val groupDao get() = database.groupDao
@@ -135,12 +258,38 @@ class GroupRepository(
 
     override suspend fun find(query: String): Contact? = withContext(Dispatchers.IO) {
         val value = query.trim()
-        val user = when (contactKind(value)) {
+        val kind = contactKind(value)
+        val localUser = when (kind) {
             ContactKind.Email -> userDao.getUserByEmailIgnoringCase(value)
             ContactKind.Phone -> userDao.getUserByPhone(normaliseContact(value))
             ContactKind.Invalid -> null
+        }?.takeUnless { it.id.startsWith(INVITE_PREFIX) }
+
+        if (localUser != null) {
+            return@withContext localUser.toContact()
         }
-        user?.takeUnless { it.id.startsWith(INVITE_PREFIX) }?.toContact()
+
+        if (kind == ContactKind.Invalid) return@withContext null
+
+        val remoteUser = remoteUsers?.findByContact(value, kind)
+            ?.takeUnless { it.id.startsWith(INVITE_PREFIX) }
+            ?: return@withContext null
+
+        val cached = userDao.cacheRemoteUser(UserEntity.fromDomain(remoteUser))
+        cached.toContact()
+    }
+
+    /**
+     * Pulls registered users from the remote `/users` collection into the local SQLite `users`
+     * table so member lookups and display names work offline too.
+     */
+    suspend fun syncRemoteUsers() = withContext(Dispatchers.IO) {
+        val fetched = remoteUsers?.fetchAllUsers().orEmpty()
+        for (remoteUser in fetched) {
+            if (!remoteUser.id.startsWith(INVITE_PREFIX)) {
+                userDao.cacheRemoteUser(UserEntity.fromDomain(remoteUser))
+            }
+        }
     }
 
     /* ------------------------------------------------------------------ writes */
@@ -227,6 +376,7 @@ class GroupRepository(
     suspend fun cacheRemoteGroup(data: Map<String, Any?>, groupId: String) = withContext(Dispatchers.IO) {
         val local = groupDao.getGroupById(groupId)
         if (local != null && local.syncStatus != SyncStatus.SYNCED) return@withContext
+        val domainGroup = GroupDocumentMapper.fromMap(data = data, groupId = groupId, nowMillis = clock())
         val (remoteGroup, remoteMembers) = GroupDocumentMapper.entitiesFromMap(
             data = data,
             groupId = groupId,
@@ -234,6 +384,19 @@ class GroupRepository(
             nowMillis = clock()
         )
         if (local != null && local.updatedAt > remoteGroup.updatedAt) return@withContext
+        val namesById = domainGroup.members.associate { it.userId to it.displayName }
+        remoteMembers.forEach { member ->
+            if (userDao.getUserById(member.userId) == null) {
+                userDao.upsertUser(
+                    UserEntity(
+                        id = member.userId,
+                        email = "",
+                        displayName = namesById[member.userId]?.takeIf { it.isNotBlank() } ?: member.userId,
+                        updatedAt = clock()
+                    )
+                )
+            }
+        }
         groupDao.upsertGroupWithMembers(remoteGroup, remoteMembers)
     }
 
@@ -314,7 +477,13 @@ class GroupRepository(
     private fun memberMap(member: GroupMemberEntity): Map<String, Any?> =
         GroupDocumentMapper.memberToMap(member, userDao.getUserById(member.userId)?.displayName)
 
-    private fun UserEntity.toContact() = Contact(id, displayName, email, phone, memberColourIndex(id))
+    private fun UserEntity.toContact() = Contact(
+        userId = id,
+        displayName = displayName,
+        email = email,
+        phone = phone?.takeIf { it.isNotBlank() } ?: phoneNumber?.takeIf { it.isNotBlank() }?.let(::normaliseContact),
+        colourIndex = memberColourIndex(id)
+    )
 
     companion object {
         const val INVITE_PREFIX = "invite:"

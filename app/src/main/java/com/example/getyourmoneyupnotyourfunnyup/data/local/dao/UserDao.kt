@@ -12,6 +12,7 @@ import org.json.JSONObject
 import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.UserEntity
 import com.example.getyourmoneyupnotyourfunnyup.model.NotificationSettings
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
+import com.example.getyourmoneyupnotyourfunnyup.ui.groups.phonesMatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -78,7 +79,7 @@ class UserDao(private val database: AppDatabase) {
     }
 
     /** A delayed remote read cannot discard a pending local edit or roll back its revision. */
-    internal fun cacheRemoteUser(remote: UserEntity): UserEntity {
+    fun cacheRemoteUser(remote: UserEntity): UserEntity {
         val db = database.writableDatabase
         db.beginTransaction()
         val result: UserEntity
@@ -163,28 +164,38 @@ class UserDao(private val database: AppDatabase) {
 
     /** Phone numbers are stored normalised (`+4522814017`), so callers pass a normalised value. */
     fun getUserByPhone(phone: String): UserEntity? {
+        val normalisedQuery = normalisePhone(phone)
+        if (normalisedQuery.isBlank()) return null
         val db = database.readableDatabase
         db.query(
             UsersTable.TABLE_NAME,
             null,
-            "${UsersTable.COL_PHONE} = ?",
-            arrayOf(phone),
+            "${UsersTable.COL_PHONE} = ? AND ${UsersTable.COL_ID} NOT LIKE 'invite:%'",
+            arrayOf(normalisedQuery),
             null,
             null,
             null
         ).use { cursor ->
-            return if (cursor.moveToFirst()) cursor.toUserEntity() else null
+            if (cursor.moveToFirst()) return cursor.toUserEntity()
+        }
+        return getAllUsers().firstOrNull { candidate ->
+            !candidate.id.startsWith("invite:") && (
+                phonesMatch(candidate.phone, normalisedQuery) ||
+                    phonesMatch(candidate.phoneNumber, normalisedQuery)
+                )
         }
     }
 
     /** Case-insensitive email lookup used by "Add member" (emails are typed by hand). */
     fun getUserByEmailIgnoringCase(email: String): UserEntity? {
+        val trimmed = email.trim()
+        if (trimmed.isEmpty()) return null
         val db = database.readableDatabase
         db.query(
             UsersTable.TABLE_NAME,
             null,
-            "LOWER(${UsersTable.COL_EMAIL}) = LOWER(?)",
-            arrayOf(email),
+            "LOWER(TRIM(${UsersTable.COL_EMAIL})) = LOWER(TRIM(?)) AND ${UsersTable.COL_ID} NOT LIKE 'invite:%'",
+            arrayOf(trimmed),
             null,
             null,
             null
@@ -256,7 +267,9 @@ class UserDao(private val database: AppDatabase) {
         put(UsersTable.COL_PHOTO_URL, photoUrl)
         // COL_PHONE is the normalised lookup key used by "Add member"; COL_PHONE_NUMBER is the number as the
         // user typed it on registration or in their profile. Derive the key from it so friends can find them.
-        put(UsersTable.COL_PHONE, phoneNumber?.takeIf { it.isNotBlank() }?.let(::normalisePhone) ?: phone)
+        val resolvedPhone = phoneNumber?.takeIf { it.isNotBlank() }?.let(::normalisePhone)
+            ?: phone?.takeIf { it.isNotBlank() }?.let(::normalisePhone)
+        put(UsersTable.COL_PHONE, resolvedPhone)
         put(UsersTable.COL_COUNT, count)
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationSettings.let {
             it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates

@@ -70,9 +70,15 @@ class GroupMembersViewModel(
             try {
                 source.collect { data ->
                     val current = mutableState.value as? GroupMembersUiState.Success
+                    val liveSyncStatus = data.members.firstOrNull { it.syncStatus != SyncStatus.SYNCED }?.syncStatus
+                        ?: SyncStatus.SYNCED
                     mutableState.value = if (current == null || current.data.groupId != data.groupId ||
                         current.data.currentUserId != data.currentUserId) {
-                        GroupMembersUiState.Success(data, canEdit = adding != null && removal != null)
+                        GroupMembersUiState.Success(
+                            data = data,
+                            lastWrite = liveSyncStatus.takeIf { it != SyncStatus.SYNCED },
+                            canEdit = adding != null && removal != null
+                        )
                     } else {
                         val stillHere = data.members.map { it.userId }.toSet()
                         val oldBalance = current.warningFor?.let { current.data.balances?.get(it) }
@@ -82,6 +88,11 @@ class GroupMembersViewModel(
                             // A changed balance invalidates the warning the user was reading.
                             warningFor = current.warningFor?.takeIf { it in stillHere && oldBalance == newBalance },
                             removing = current.removing.filter { it in stillHere }.toSet(),
+                            lastWrite = when {
+                                liveSyncStatus != SyncStatus.SYNCED -> liveSyncStatus
+                                current.lastWrite != null -> SyncStatus.SYNCED
+                                else -> null
+                            },
                             sourceError = null
                         )
                     }
@@ -131,7 +142,11 @@ class GroupMembersViewModel(
         viewModelScope.launch {
             try {
                 val status = actions.removeMember(groupId, userId)
-                update { it.copy(lastWrite = status) }
+                update { state ->
+                    val alreadySynced = state.data.members.none { it.userId == userId } &&
+                        state.data.members.all { it.syncStatus == SyncStatus.SYNCED }
+                    state.copy(lastWrite = if (alreadySynced) SyncStatus.SYNCED else status)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -210,7 +225,14 @@ class GroupMembersViewModel(
         viewModelScope.launch {
             try {
                 val status = actions.addMember(groupId, member)
-                update { it.copy(addPanel = AddMemberPanel(), lastWrite = status) }
+                update { state ->
+                    val alreadySynced = state.data.members.any { it.userId == member.key } &&
+                        state.data.members.all { it.syncStatus == SyncStatus.SYNCED }
+                    state.copy(
+                        addPanel = AddMemberPanel(),
+                        lastWrite = if (alreadySynced) SyncStatus.SYNCED else status
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
