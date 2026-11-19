@@ -243,12 +243,20 @@ class UserDao(private val database: AppDatabase) {
         database.notifyTableChanged(UsersTable.TABLE_NAME)
     }
 
+    /** Same phone format as `normaliseContact` in the groups UI: optional leading `+`, then digits only. */
+    private fun normalisePhone(value: String): String {
+        val trimmed = value.trim()
+        return (if (trimmed.startsWith("+")) "+" else "") + trimmed.filter { it.isDigit() }
+    }
+
     private fun UserEntity.toContentValues(): ContentValues = ContentValues().apply {
         put(UsersTable.COL_ID, id)
         put(UsersTable.COL_EMAIL, email)
         put(UsersTable.COL_DISPLAY_NAME, displayName)
         put(UsersTable.COL_PHOTO_URL, photoUrl)
-        put(UsersTable.COL_PHONE, phone)
+        // COL_PHONE is the normalised lookup key used by "Add member"; COL_PHONE_NUMBER is the number as the
+        // user typed it on registration or in their profile. Derive the key from it so friends can find them.
+        put(UsersTable.COL_PHONE, phoneNumber?.takeIf { it.isNotBlank() }?.let(::normalisePhone) ?: phone)
         put(UsersTable.COL_COUNT, count)
         put(UsersTable.COL_NOTIFICATIONS_ENABLED, if (notificationSettings.let {
             it.expenseAlerts || it.changedExpenseAlerts || it.paymentReminders || it.syncUpdates
@@ -267,11 +275,8 @@ class UserDao(private val database: AppDatabase) {
     private fun Cursor.toUserEntity(): UserEntity {
         val photoIdx = getColumnIndexOrThrow(UsersTable.COL_PHOTO_URL)
         val countIdx = getColumnIndex(UsersTable.COL_COUNT)
-
         val phoneIdx = getColumnIndex(UsersTable.COL_PHONE)
-
-        val phoneIdx = getColumnIndexOrThrow(UsersTable.COL_PHONE_NUMBER)
-
+        val phoneNumberIdx = getColumnIndexOrThrow(UsersTable.COL_PHONE_NUMBER)
         return UserEntity(
             id = getString(getColumnIndexOrThrow(UsersTable.COL_ID)),
             email = getString(getColumnIndexOrThrow(UsersTable.COL_EMAIL)),
@@ -282,7 +287,7 @@ class UserDao(private val database: AppDatabase) {
             notificationsEnabled = getInt(getColumnIndexOrThrow(UsersTable.COL_NOTIFICATIONS_ENABLED)) != 0,
             syncStatus = Converters.toSyncStatus(getString(getColumnIndexOrThrow(UsersTable.COL_SYNC_STATUS))),
             updatedAt = getLong(getColumnIndexOrThrow(UsersTable.COL_UPDATED_AT)),
-            phoneNumber = if (isNull(phoneIdx)) null else getString(phoneIdx).takeIf { it.isNotBlank() },
+            phoneNumber = if (isNull(phoneNumberIdx)) null else getString(phoneNumberIdx).takeIf { it.isNotBlank() },
             excludeAlcohol = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_ALCOHOL)) != 0,
             excludeMeat = getInt(getColumnIndexOrThrow(UsersTable.COL_EXCLUDE_MEAT)) != 0,
             notificationSettings = NotificationSettings(

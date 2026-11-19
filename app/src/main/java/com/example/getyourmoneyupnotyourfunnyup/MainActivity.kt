@@ -20,17 +20,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.RepositoryAuthSessionSource
+import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.LoginScreen
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.auth.RegistrationScreen
-
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.counter.CounterScreen
-import com.example.getyourmoneyupnotyourfunnyup.ui.screens.shell.MainShell
-
-import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
-
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.GetYourMoneyUpNotYourFunnyUpTheme
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthForm
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.AuthUiState
@@ -101,39 +96,6 @@ fun AppRoot(modifier: Modifier = Modifier) {
                     onPhoneNumberChange = authViewModel::setPhoneNumber
                 )
             }
-
-
-            // Authenticated shell (Home · Groups · Scan · Activity · Profile). The existing
-            // profile/counter screen with logout lives in the Profile tab.
-            MainShell(
-                user = activeUser,
-                modifier = modifier,
-                profileContent = { profileModifier ->
-                    CounterScreen(
-                        modifier = profileModifier,
-                        user = activeUser,
-                        statusMessage = statusMessage,
-                        onIncrementClick = {
-                            statusMessage = "Saving count to /users/${activeUser.id}..."
-                            authRepository.incrementUserCount(activeUser) { result ->
-                                result
-                                    .onSuccess { savedCount ->
-                                        statusMessage = "Saved count ($savedCount) to /users/${activeUser.id}"
-                                    }
-                                    .onFailure { err ->
-                                        statusMessage = "Offline / Failed: ${err.localizedMessage}"
-                                    }
-                            }
-                        },
-                        onLogoutClick = {
-                            authRepository.signOut()
-                            password = ""
-                            errorMessage = null
-                            statusMessage = ""
-                            destination = AppDestination.Login
-                        }
-                    )
-                
         }
         is AuthUiState.SignedIn -> {
             val profileRepository = remember(current.user.id, applicationContext) {
@@ -144,7 +106,6 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 user = current.user,
                 onLogout = authViewModel::logout,
                 profileRepository = profileRepository
-
             )
         }
     }

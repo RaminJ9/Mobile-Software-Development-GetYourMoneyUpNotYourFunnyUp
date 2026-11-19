@@ -6,7 +6,7 @@ package com.example.getyourmoneyupnotyourfunnyup.data.local
  */
 object DatabaseContract {
     const val DATABASE_NAME = "get_your_money_up.db"
-    const val DATABASE_VERSION = 3
+    const val DATABASE_VERSION = 4
 
     object UsersTable {
         const val TABLE_NAME = "users"
