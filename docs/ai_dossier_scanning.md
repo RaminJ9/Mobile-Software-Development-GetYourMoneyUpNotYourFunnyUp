@@ -67,4 +67,6 @@ AI mistakes that were observed and how they were caught.
 6. **Tests checked against the bug.** The test for "pressing Save twice saves once" was run with the
    guard removed, to prove it fails without it.
 
-AI-assisted code reaches `main` only through a pull request reviewed by a human team member.
+AI-assisted code reaches `main` through a pull request. PR #4 was merged by the user (Victor, Person 3) on
+20-11-2026 for the hand-in deadline, after he tested it on his own phone. A teammate's review was not
+done before merging and should follow.
