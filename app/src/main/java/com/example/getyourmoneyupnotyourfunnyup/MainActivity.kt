@@ -20,10 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.work.WorkManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.WorkManagerReceiptUploads
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.scheduleMissing
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.RepositoryAuthSessionSource
@@ -110,6 +113,15 @@ fun AppRoot(modifier: Modifier = Modifier) {
             val profileRepository = remember(current.user.id, database) {
                 FirebaseProfileRepository(database)
             }
+            // Receipt photos go to cloud storage in the background, so other members can see them.
+            val receiptUploads = remember(applicationContext) {
+                WorkManagerReceiptUploads(WorkManager.getInstance(applicationContext))
+            }
+            LaunchedEffect(current.user.id, receiptUploads) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { receiptUploads.scheduleMissing(database, current.user.id) }
+                }
+            }
             var cloudReadError by remember(current.user.id) { mutableStateOf<String?>(null) }
             DisposableEffect(current.user.id, database) {
                 val session = com.example.getyourmoneyupnotyourfunnyup.data.sync.RemoteGroupSession(database, current.user.id,
@@ -134,7 +146,8 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 onLogout = authViewModel::logout,
                 profileRepository = profileRepository,
                 database = database,
-                cloudReadError = cloudReadError
+                cloudReadError = cloudReadError,
+                receiptUploads = receiptUploads
             )
         }
     }

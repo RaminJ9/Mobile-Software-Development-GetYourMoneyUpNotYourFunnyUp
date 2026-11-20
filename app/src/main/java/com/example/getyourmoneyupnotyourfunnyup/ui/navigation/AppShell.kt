@@ -17,6 +17,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.receipt.MlKitReceiptScanner
 import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptPhotoStore
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptUploads
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.ExpenseRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalScanSource
 import com.example.getyourmoneyupnotyourfunnyup.data.sync.ConnectionState
@@ -66,7 +67,8 @@ fun AppShell(
     profileRepository: ProfileRepository? = null,
     database: AppDatabase? = null,
     currentAccountId: () -> String? = { Firebase.auth.currentUser?.uid },
-    cloudReadError: String? = null
+    cloudReadError: String? = null,
+    receiptUploads: ReceiptUploads? = null
 ) {
     val applicationContext = LocalContext.current.applicationContext
     val localDatabase = remember(database, applicationContext) { database ?: AppDatabase.getInstance(applicationContext) }
@@ -150,7 +152,7 @@ fun AppShell(
                         factory = viewModelFactory {
                             initializer {
                                 ScanViewModel(
-                                    source = LocalScanSource(localDatabase, groups.repository, ExpenseRepository(localDatabase)),
+                                    source = LocalScanSource(localDatabase, groups.repository, ExpenseRepository(localDatabase), receiptUploads),
                                     meId = user.id,
                                     initialGroupId = scanGroupId,
                                     scanner = MlKitReceiptScanner(applicationContext),

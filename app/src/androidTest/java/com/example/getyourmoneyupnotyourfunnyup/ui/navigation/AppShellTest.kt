@@ -143,7 +143,10 @@ class AppShellTest {
         compose.waitUntil(10000) { compose.onAllNodesWithText("Check items").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Trip").assertExists() // the group it was opened from
         compose.onNodeWithContentDescription("Price in kroner").performTextInput("120")
+        // Let the keyboard close before tapping, so the screen isn't still moving under the tap.
+        Espresso.closeSoftKeyboard()
         compose.onNodeWithText("Next: who had what").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Save expense \u00b7 120,00 kr").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Save expense \u00b7 120,00 kr").performClick()
         compose.waitUntil(10000) { compose.onAllNodesWithText("Expense saved").fetchSemanticsNodes().isNotEmpty() }
 
