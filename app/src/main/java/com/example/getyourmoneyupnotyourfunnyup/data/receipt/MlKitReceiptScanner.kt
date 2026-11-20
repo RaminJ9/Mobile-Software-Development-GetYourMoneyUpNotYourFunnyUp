@@ -25,7 +25,7 @@ class MlKitReceiptScanner(context: Context) : ReceiptScanner {
         val text = recognizer.process(image).await()
         val lines = text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
             val box = line.boundingBox ?: return@mapNotNull null
-            OcrLine(line.text, box.left, box.top, box.right, box.bottom, line.confidence)
+            OcrLine(line.text, box.left, box.top, box.right, box.bottom, line.confidence, line.angle)
         }
         return withContext(Dispatchers.Default) { ReceiptParser.parse(lines) }
     }

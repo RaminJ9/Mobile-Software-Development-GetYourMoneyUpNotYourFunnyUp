@@ -48,6 +48,24 @@ class ReceiptScanningTest {
     }
 
     @Test
+    fun aTiltedPhoto_stillGivesEveryItemItsOwnPriceAndFindsTheTotal() = runBlocking {
+        // Hand-held photos are rarely straight. Without straightening the rows, prices slid one item down
+        // and the total was read as an item.
+        for (degrees in listOf(4f, -6f)) {
+            val source = writeImage("tilted.png", tilted(drawReceipt(), degrees), Bitmap.CompressFormat.PNG)
+            val photo = store.save(Uri.fromFile(source).toString())
+            try {
+                val receipt = MlKitReceiptScanner(context).read(photo)
+                assertEquals("tilted $degrees°", listOf(5_995L, 600L, 4_500L, 2_200L, 7_900L), receipt.items.map { it.priceCents })
+                assertEquals("tilted $degrees°", 21_195L, receipt.totalCents)
+            } finally {
+                store.delete(photo)
+                source.delete()
+            }
+        }
+    }
+
+    @Test
     fun aSidewaysPhoto_isStoredUpright() = runBlocking {
         // A camera JPEG that says "rotate 90°" in its EXIF data.
         val source = writeImage("sideways.jpg", Bitmap.createBitmap(400, 200, Bitmap.Config.ARGB_8888), Bitmap.CompressFormat.JPEG)
@@ -73,6 +91,17 @@ class ReceiptScanningTest {
         store.delete(Uri.fromFile(elsewhere).toString())
         assertTrue(elsewhere.exists())
         elsewhere.delete()
+    }
+
+    /** [receipt] photographed at an angle, on a white table. */
+    private fun tilted(receipt: Bitmap, degrees: Float): Bitmap {
+        val photo = Bitmap.createBitmap(receipt.width + 200, receipt.height + 200, Bitmap.Config.ARGB_8888)
+        Canvas(photo).apply {
+            drawColor(Color.WHITE)
+            rotate(degrees, photo.width / 2f, photo.height / 2f)
+            drawBitmap(receipt, 100f, 100f, null)
+        }
+        return photo
     }
 
     private fun writeImage(name: String, bitmap: Bitmap, format: Bitmap.CompressFormat): File =

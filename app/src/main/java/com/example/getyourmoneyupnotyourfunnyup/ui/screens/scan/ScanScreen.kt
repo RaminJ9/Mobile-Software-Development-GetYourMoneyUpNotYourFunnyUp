@@ -638,26 +638,7 @@ private fun ReviewStep(state: ScanUiState, onAction: (ScanAction) -> Unit, onClo
                                 }
                             }
                         }
-                        state.receiptTotalCents?.let { receiptTotal ->
-                            if (receiptTotal != state.totalCents) {
-                                Notice(tone = NoticeTone.Warning, icon = AppIcons.Warning) {
-                                    Text(
-                                        buildAnnotatedString {
-                                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                append("Items add up to ${formatDanishAmountFromCents(state.totalCents)}")
-                                            }
-                                            append(", but the receipt says ${formatDanishAmountFromCents(receiptTotal)}. Check the highlighted price.")
-                                        },
-                                        style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp),
-                                        color = AppColors.Amber800,
-                                    )
-                                }
-                            } else {
-                                Notice(tone = NoticeTone.Success, icon = AppIcons.Check) {
-                                    Text("Items match the receipt total", style = jakarta(14, FontWeight.Bold), color = AppColors.Green700)
-                                }
-                            }
-                        }
+                        ReceiptTotalCheck(state, onAction)
                     }
                 }
             }
@@ -970,6 +951,53 @@ private fun SplitStep(state: ScanUiState, onAction: (ScanAction) -> Unit) {
     }
 }
 
+/**
+ * The receipt's printed total (read from the photo, or typed in when it wasn't found) and whether the
+ * items add up to it. A mismatch means a price was misread or an item was missed.
+ */
+@Composable
+private fun ReceiptTotalCheck(state: ScanUiState, onAction: (ScanAction) -> Unit) {
+    LabeledTextField(
+        label = "Total on receipt",
+        value = state.receiptTotalText,
+        onValueChange = { onAction(ScanAction.ReceiptTotalChanged(it)) },
+        placeholder = "e.g. 240,35",
+        keyboardType = KeyboardType.Decimal,
+        isWarning = state.receiptTotalCents != null && state.receiptTotalCents != state.totalCents,
+    )
+    val receiptTotal = state.receiptTotalCents
+    when {
+        // Nothing was read at all; the notice above already says so.
+        receiptTotal == null && state.readFailed -> Unit
+        receiptTotal == null -> Notice(tone = NoticeTone.Warning, icon = AppIcons.AlertCircle) {
+            Text(
+                "We couldn't find the total on the receipt. Type it in above to check that the items add up.",
+                style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp),
+                color = AppColors.Amber800,
+            )
+        }
+        receiptTotal != state.totalCents -> Notice(tone = NoticeTone.Warning, icon = AppIcons.Warning) {
+            val difference = formatDanishAmountFromCents(kotlin.math.abs(state.totalCents - receiptTotal))
+            val where = if (state.items.any { it.lowConfidence }) "Check the highlighted prices." else "Check the prices against the receipt."
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append("Items add up to ${formatDanishAmountFromCents(state.totalCents)}")
+                    }
+                    append(", but the receipt says ${formatDanishAmountFromCents(receiptTotal)}")
+                    append(if (state.totalCents > receiptTotal) " ($difference too much). " else " ($difference missing). ")
+                    append(where)
+                },
+                style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp),
+                color = AppColors.Amber800,
+            )
+        }
+        else -> Notice(tone = NoticeTone.Success, icon = AppIcons.Check) {
+            Text("Items match the receipt total", style = jakarta(14, FontWeight.Bold), color = AppColors.Green700)
+        }
+    }
+}
+
 @Composable
 private fun ToggleAvatar(avatar: AvatarUi, on: Boolean, size: Int) {
     if (on) {
@@ -1149,7 +1177,7 @@ private fun scanned(step: ScanStep) = ScanLocalState(
         ReceiptItem(4, "Rugbrød", "22,00"),
         ReceiptItem(5, "Merlot rødvin", "79,00", isAlcohol = true, lowConfidence = true),
     ),
-    receiptTotalCents = 21_195,
+    receiptTotalText = "211,95",
 )
 
 @Composable

@@ -123,6 +123,9 @@ data class ScanUiState(
     val payerPickerOpen: Boolean,
     val items: List<ReviewItemUi>,
     val totalCents: Long,
+    /** The total printed on the receipt, as read (or typed); the items are checked against it. */
+    val receiptTotalText: String,
+    /** [receiptTotalText] as an amount; null for typed-in expenses or when no total is known. */
     val receiptTotalCents: Long?,
     val people: List<SplitPersonUi>,
     val ruleNotice: String?,
@@ -161,6 +164,7 @@ sealed interface ScanAction {
     data class TitleChanged(val value: String) : ScanAction
     data class ItemNameChanged(val id: Int, val value: String) : ScanAction
     data class ItemPriceChanged(val id: Int, val value: String) : ScanAction
+    data class ReceiptTotalChanged(val value: String) : ScanAction
     data class RemoveItem(val id: Int) : ScanAction
     data object AddItem : ScanAction
     data class TogglePerson(val personId: String) : ScanAction
@@ -184,7 +188,8 @@ data class ScanLocalState(
     val photo: String? = null,
     val foundLines: Int? = null,
     val readFailed: Boolean = false,
-    val receiptTotalCents: Long? = null,
+    /** The receipt's printed total as text: filled in from the photo, editable by the user. */
+    val receiptTotalText: String = "",
     val cameraMessage: String? = null,
     val excluded: Set<String> = emptySet(),
     val overrides: Map<Int, List<String>> = emptyMap(),
@@ -323,7 +328,8 @@ fun buildScanUiState(
             )
         },
         totalCents = total,
-        receiptTotalCents = if (local.manual) null else local.receiptTotalCents,
+        receiptTotalText = local.receiptTotalText,
+        receiptTotalCents = if (local.manual) null else DanishAmount.parse(local.receiptTotalText),
         people = members.map {
             SplitPersonUi(it.id, nameFor(it.id), it.avatarFor(me), it.id !in local.excluded, canToggle = it.id != me)
         },
@@ -408,6 +414,7 @@ class ScanViewModel(
             is ScanAction.TitleChanged -> local.update { it.copy(title = action.value) }
             is ScanAction.ItemNameChanged -> updateItem(action.id) { it.copy(name = action.value) }
             is ScanAction.ItemPriceChanged -> updateItem(action.id) { it.copy(priceText = action.value, lowConfidence = false) }
+            is ScanAction.ReceiptTotalChanged -> local.update { it.copy(receiptTotalText = action.value) }
             is ScanAction.RemoveItem -> local.update { state -> state.copy(items = state.items.filterNot { it.id == action.id }) }
             ScanAction.AddItem -> local.update { state ->
                 val id = (state.items.maxOfOrNull { it.id } ?: 0) + 1
@@ -436,7 +443,7 @@ class ScanViewModel(
         local.update {
             it.copy(
                 step = ScanStep.Reading, manual = false, cameraMessage = null, readFailed = false, foundLines = null,
-                photo = null, overrides = emptyMap(), excluded = emptySet(),
+                photo = null, overrides = emptyMap(), excluded = emptySet(), receiptTotalText = "",
             )
         }
         readingJob = viewModelScope.launch {
@@ -463,7 +470,7 @@ class ScanViewModel(
                     step = ScanStep.Review,
                     title = scanned?.merchant ?: "Receipt",
                     items = items.ifEmpty { listOf(ReceiptItem(1, "", "")) },
-                    receiptTotalCents = scanned?.totalCents?.takeIf { items.isNotEmpty() },
+                    receiptTotalText = scanned?.totalCents?.takeIf { items.isNotEmpty() }?.let(DanishAmount::forInput).orEmpty(),
                     readFailed = items.isEmpty(),
                 )
             }

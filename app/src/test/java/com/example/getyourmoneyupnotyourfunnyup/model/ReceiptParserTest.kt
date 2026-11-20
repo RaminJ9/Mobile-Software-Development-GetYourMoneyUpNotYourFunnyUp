@@ -5,6 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * Recognizer output for real-looking Danish receipts, written out by hand. Like the real recognizer,
@@ -137,7 +140,7 @@ class ReceiptParserTest {
     }
 
     @Test
-    fun withoutATotal_paymentAndVatLinesAreStillNotItems() {
+    fun withoutATotalLine_theCardPaymentIsTheTotal_andPaymentLinesAreNotItems() {
         val scanned = receipt {
             row("NETTO")
             row("MÆLK", "11,95")
@@ -145,8 +148,83 @@ class ReceiptParserTest {
             row("MOMS", "2,39")
             row("BYTTEPENGE", "0,00")
         }
-        assertNull(scanned.totalCents)
+        assertEquals(1_195L, scanned.totalCents)
         assertEquals(listOf("Mælk"), scanned.items.map { it.name })
+    }
+
+    @Test
+    fun cashGiven_isNotTheTotal() {
+        val scanned = receipt {
+            row("MÆLK", "11,95")
+            row("KONTANT", "100,00")
+            row("BYTTEPENGE", "88,05")
+        }
+        assertNull("Cash handed over includes the change", scanned.totalCents)
+        assertEquals(listOf("Mælk"), scanned.items.map { it.name })
+    }
+
+    @Test
+    fun aTotalWhoseAmountIsOnTheNextRow_isTheTotal_notAnItem() {
+        val scanned = receipt {
+            row("ÆBLER", "15,00")
+            row("PÆRER", "18,00")
+            line("TOTAL")
+            line("33,00")
+            row("DANKORT", "33,00")
+        }
+        assertEquals(3_300L, scanned.totalCents)
+        assertEquals(listOf("Æbler", "Pærer"), scanned.items.map { it.name })
+    }
+
+    @Test
+    fun otherWaysOfPrintingTheTotal() {
+        assertEquals(24_035L, receipt { row("KAFFE", "240,35"); row("Køb i alt", "240,35") }.totalCents)
+        assertEquals(24_035L, receipt { row("KAFFE", "240,35"); row("Total DKK", "240,35") }.totalCents)
+        assertEquals(24_035L, receipt { row("KAFFE", "240,35"); row("At betale", "240,35 kr") }.totalCents)
+        val withSubtotal = receipt { row("KAFFE", "240,35"); row("SUBTOTAL", "240,35"); row("TE", "10,00"); row("TOTAL", "250,35") }
+        assertEquals("A subtotal is neither the total nor an item", listOf("Kaffe", "Te"), withSubtotal.items.map { it.name })
+        assertEquals(25_035L, withSubtotal.totalCents)
+    }
+
+    @Test
+    fun pricesWithKrOrASpaceNextToTheComma_areReadInFull() {
+        val scanned = receipt {
+            row("PIZZA MARGHERITA", "125,00 kr")
+            row("HAKKET OKSEKØD", "45, 00") // the recognizer put a space after the comma
+            row("COLA 1,5 L", "25 ,00")
+            row("TOTAL", "195,00")
+        }
+        assertEquals(listOf(12_500L, 4_500L, 2_500L), scanned.items.map { it.priceCents })
+        assertEquals(19_500L, scanned.totalCents)
+    }
+
+    @Test
+    fun aTiltedPhoto_pairsNamesWithTheirOwnPrices() {
+        // Rotated 5°: a price on the far right sits lower than the start of its own name by more than a
+        // row, so pairing by height alone moves every price one item down. Names report the angle; short
+        // prices come back as 0°, as the real recognizer does.
+        val rows = listOf("ARLA MINIMÆLK" to "12,95", "RUGBRØD" to "22,00", "HAKKET OKSEKØD" to "45,00",
+            "TUBORG GRØN" to "59,95", "BANANER" to "15,50", "SMØR" to "24,95", "TOTAL" to "180,35")
+        val lines = rows.flatMapIndexed { i, (name, price) ->
+            val y = 100 + 62 * i
+            listOf(rotated(name, 60, 60 + name.length * 23, y, y + 36, 5.0, reported = 5f),
+                rotated(price, 760, 860, y, y + 36, 5.0, reported = 0f))
+        }
+        val scanned = ReceiptParser.parse(lines)
+        assertEquals(rows.dropLast(1).map { (name, price) -> name to DanishAmount.parse(price) }, scanned.items.map { it.name.uppercase() to it.priceCents })
+        assertEquals(18_035L, scanned.totalCents)
+    }
+
+    /** The box a recognizer reports for text printed at [x0]–[x1], [top]–[bottom] on a photo tilted by [degrees]. */
+    private fun rotated(text: String, x0: Int, x1: Int, top: Int, bottom: Int, degrees: Double, reported: Float): OcrLine {
+        val a = Math.toRadians(degrees)
+        val corners = listOf(x0 to top, x1 to top, x0 to bottom, x1 to bottom).map { (x, y) ->
+            (x * cos(a) - y * sin(a)) to (x * sin(a) + y * cos(a))
+        }
+        return OcrLine(
+            text, corners.minOf { it.first }.roundToInt(), corners.minOf { it.second }.roundToInt(),
+            corners.maxOf { it.first }.roundToInt(), corners.maxOf { it.second }.roundToInt(), angle = reported,
+        )
     }
 
     @Test

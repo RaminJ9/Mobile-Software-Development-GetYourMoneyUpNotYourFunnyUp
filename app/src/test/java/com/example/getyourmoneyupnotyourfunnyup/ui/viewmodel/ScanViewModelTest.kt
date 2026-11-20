@@ -153,6 +153,41 @@ class ScanViewModelTest {
     }
 
     @Test
+    fun aReceiptWithoutAReadableTotal_letsTheUserTypeItIn_andChecksTheItemsAgainstIt() = runTest(main) {
+        val vm = scan(scanner = { sampleReceipt.copy(totalCents = null) })
+        vm.onAction(ScanAction.PhotoTaken("file:///cache/no-total"))
+        finishReading()
+        assertEquals("", vm.uiState.value.receiptTotalText)
+        assertNull("No total, so nothing to compare yet", vm.uiState.value.receiptTotalCents)
+
+        vm.onAction(ScanAction.ReceiptTotalChanged("211,95"))
+        val state = vm.uiState.value
+        assertEquals(21_195L, state.receiptTotalCents)
+        assertEquals(22_995L, state.totalCents)
+        assertEquals("The wine misread as 97,00 instead of 79,00 shows up as 18,00 too much", 1_800L, state.totalCents - 21_195L)
+    }
+
+    @Test
+    fun theTotalReadFromThePhoto_isFilledInAndCanBeCorrected() = runTest(main) {
+        val vm = scan()
+        vm.onAction(ScanAction.PhotoTaken("file:///cache/shot"))
+        finishReading()
+        assertEquals("211,95", vm.uiState.value.receiptTotalText)
+
+        vm.onAction(ScanAction.ReceiptTotalChanged("229,95"))
+        assertEquals(22_995L, vm.uiState.value.receiptTotalCents)
+        assertEquals("Now the items match", vm.uiState.value.receiptTotalCents, vm.uiState.value.totalCents)
+    }
+
+    @Test
+    fun typedInExpenses_haveNoReceiptTotalToCheck() = runTest(main) {
+        val vm = scan()
+        vm.onAction(ScanAction.TypeManually)
+        vm.onAction(ScanAction.ReceiptTotalChanged("100,00"))
+        assertNull(vm.uiState.value.receiptTotalCents)
+    }
+
+    @Test
     fun withoutAGroupChosen_theMostRecentlyActiveGroupIsUsed() = runTest(main) {
         val vm = scan(groupId = null)
         assertEquals("kol", vm.uiState.value.group?.id)

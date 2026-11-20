@@ -2,10 +2,12 @@ package com.example.getyourmoneyupnotyourfunnyup.model
 
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * One line of text the scanner found on the photo: its text, its box in pixels and how sure the
- * recognizer was (0–1).
+ * One line of text the scanner found on the photo: its text, its box in pixels, how sure the recognizer
+ * was (0–1) and the text's angle in degrees (positive when it slopes down to the right).
  */
 data class OcrLine(
     val text: String,
@@ -14,6 +16,7 @@ data class OcrLine(
     val right: Int,
     val bottom: Int,
     val confidence: Float = 1f,
+    val angle: Float = 0f,
 )
 
 /** What a receipt photo turned into. [totalCents] is the printed total, null when it wasn't found. */
@@ -43,6 +46,8 @@ object ReceiptParser {
         var total: Long? = null
         var pendingName: String? = null // a name whose price is on the next row (e.g. "2 x 7,00   14,00")
         var pendingConfidence = 1f
+        var totalPending = false // "TOTAL" was read but its amount is on the next row
+        var paidCents: Long? = null // the card/MobilePay amount: the total, if no total line is found
 
         fun addItem(name: String, cents: Long, lowConfidence: Boolean) {
             val words = words(name)
@@ -76,6 +81,19 @@ object ReceiptParser {
                     total = price.cents
                     break
                 }
+                totalPending && price != null && !looksLikeName(upper) -> {
+                    total = price.cents
+                    break
+                }
+                // Never an item: the amount for this total is on the row below.
+                price == null && isTotal(upper) -> {
+                    totalPending = true
+                    pendingName = null
+                }
+                isPayment(upper) -> {
+                    if (price != null && paidCents == null) paidCents = price.cents
+                    pendingName = null
+                }
                 isIgnored(upper) -> pendingName = null
                 quantity != null -> {
                     // "2 x 7,00   14,00" (or just "2 x 7,00") under a name without a price: that name costs
@@ -105,19 +123,43 @@ object ReceiptParser {
                 }
             }
         }
-        return ScannedReceipt(merchant, items, total)
+        return ScannedReceipt(merchant, items, total ?: paidCents)
     }
 
     // --- Rows ----------------------------------------------------------------------------------------
 
     private data class Row(val text: String, val confidence: Float)
 
-    /** Joins lines that sit at the same height into one row, read top to bottom, left to right. */
+    /**
+     * Joins the lines of each printed row, read top to bottom, left to right.
+     *
+     * Photos are rarely held straight, so positions are measured at right angles to the text. On a tilted
+     * receipt a name on the left and its price on the far right then still form one row, instead of the
+     * price sliding onto the next item.
+     */
     private fun rows(lines: List<OcrLine>): List<Row> {
+        val visible = lines.filter { it.text.isNotBlank() }
+        if (visible.isEmpty()) return emptyList()
+        val tilt = Math.toRadians(tiltOf(visible))
+        val sinTilt = sin(tilt)
+        val cosTilt = cos(tilt)
+        // How far down the receipt a line is, measured across the text.
+        fun across(line: OcrLine) = (line.top + line.bottom) / 2.0 * cosTilt - (line.left + line.right) / 2.0 * sinTilt
+        // A tilted line's box is taller than its text by about width × sin(tilt).
+        fun textHeight(line: OcrLine) =
+            maxOf(((line.bottom - line.top) - (line.right - line.left) * abs(sinTilt)) / cosTilt, (line.bottom - line.top) * 0.25)
+        val lineHeight = visible.map(::textHeight).sorted()[visible.size / 2]
+
         val groups = mutableListOf<MutableList<OcrLine>>()
-        lines.filter { it.text.isNotBlank() }.sortedBy { (it.top + it.bottom) / 2 }.forEach { line ->
-            val row = groups.lastOrNull()
-            if (row != null && row.any { sameRow(it, line) }) row += line else groups += mutableListOf(line)
+        var rowAt = 0.0
+        visible.sortedBy(::across).forEach { line ->
+            val at = across(line)
+            if (groups.isNotEmpty() && at - rowAt <= lineHeight / 2) {
+                groups.last() += line
+            } else {
+                groups += mutableListOf(line)
+                rowAt = at
+            }
         }
         return groups.map { group ->
             val ordered = group.sortedBy { it.left }
@@ -125,10 +167,15 @@ object ReceiptParser {
         }
     }
 
-    /** Two lines are on the same row when they overlap by at least half of the shorter one's height. */
-    private fun sameRow(a: OcrLine, b: OcrLine): Boolean {
-        val overlap = minOf(a.bottom, b.bottom) - maxOf(a.top, b.top)
-        return overlap * 2 >= minOf(a.bottom - a.top, b.bottom - b.top)
+    /**
+     * The receipt's tilt in degrees: the median line angle, weighted by text length. Short lines such as
+     * "6,00" often come back with angle 0 even on a tilted photo, so the long name lines decide.
+     */
+    private fun tiltOf(lines: List<OcrLine>): Double {
+        val byAngle = lines.sortedBy { it.angle }
+        val half = byAngle.sumOf { it.text.length } / 2.0
+        var seen = 0
+        return byAngle.first { line -> seen += line.text.length; seen >= half }.angle.toDouble()
     }
 
     // --- Prices --------------------------------------------------------------------------------------
@@ -160,6 +207,8 @@ object ReceiptParser {
 
     private fun isTotal(upper: String): Boolean = TOTAL.containsMatchIn(upper)
 
+    private fun isPayment(upper: String): Boolean = words(upper).any { it in PAYMENT_WORDS }
+
     private fun isIgnored(upper: String): Boolean =
         words(upper).any { it in IGNORED_WORDS } || IGNORED_PHRASES.any { it in upper } || DATE_OR_TIME.containsMatchIn(upper)
 
@@ -189,17 +238,23 @@ object ReceiptParser {
         }
 
     private val PRICE = Regex(
-        // 1: leading minus, 2: the amount, 3: trailing minus, then an optional VAT code.
-        "([-−]?)\\s?([0-9OolIS]{1,3}(?:\\.[0-9OolIS]{3})+,[0-9OolIS]{2}|[0-9OolIS]+[,.][0-9OolIS]{2})" +
-            "([-−]?)\\s*(?:[AB*]{1,2})?\\s*$",
+        // 1: leading minus, 2: the amount (recognizers sometimes put a space next to the comma: "45, 00"),
+        // 3: trailing minus.
+        "([-−]?)\\s?([0-9OolIS]{1,3}(?:\\.[0-9OolIS]{3})+ ?, ?[0-9OolIS]{2}|[0-9OolIS]+ ?[,.] ?[0-9OolIS]{2})" +
+            // then "kr" / "DKK" and a VAT code, both optional
+            "([-−]?)\\s*(?:(?i:kr)\\.?|DKK)?\\s*(?:[AB*]{1,2})?\\s*$",
     )
     private val DIGIT_LOOKALIKES = mapOf('O' to '0', 'o' to '0', 'l' to '1', 'I' to '1', 'S' to '5')
     private val QUANTITY =
-        Regex("^(\\d+)\\s*(?:X|STK\\.?\\s*(?:X|Á|À|A)?|Á|À|@)\\s*(\\d+[,.]\\d{2})(?:\\s+(\\d+[,.]\\d{2}))?\\s*[AB*]{0,2}\\s*$")
-    private val TOTAL = Regex("^(TOTAL|TOTALT|I ALT|AT BETALE|TIL BETALING|SUM)\\b")
+        Regex("^(\\d+)\\s*(?:X|STK\\.?\\s*(?:X|Á|À|A)?|Á|À|@)\\s*(\\d+ ?[,.] ?\\d{2})(?:\\s+(\\d+ ?[,.] ?\\d{2}))?\\s*[AB*]{0,2}\\s*$")
+    /** "TOTAL", "Total DKK", "SUM", "I alt", "Køb i alt", "At betale", "Til betaling" (not "Subtotal"). */
+    private val TOTAL = Regex("^(?:TOTAL|TOTALT|SUM)\\b|\\b(?:I ALT|AT BETALE|TIL BETALING)\\b")
+
+    /** Card and MobilePay lines print the amount paid, which is the total. Cash lines don't (change). */
+    private val PAYMENT_WORDS = setOf("DANKORT", "VISA", "MASTERCARD", "MAESTRO", "MOBILEPAY", "BELØB", "KORTBETALING")
     private val DATE_OR_TIME = Regex("\\b\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}\\b")
     private val IGNORED_WORDS = setOf(
-        "MOMS", "MOMSBELØB", "DANKORT", "VISA", "MASTERCARD", "MOBILEPAY", "KONTANT", "BYTTEPENGE", "RETUR",
+        "MOMS", "MOMSBELØB", "KONTANT", "BYTTEPENGE", "RETUR",
         "CVR", "TLF", "TELEFON", "KVITTERING", "BON", "KASSE", "EKSPEDIENT", "TERMINAL", "SUBTOTAL", "MELLEMSUM",
     )
     private val IGNORED_PHRASES = listOf("TAK FOR", "ANTAL VARER", "DU HAR SPARET", "DU SPAREDE")
