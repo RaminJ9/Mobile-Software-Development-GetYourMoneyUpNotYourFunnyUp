@@ -9,6 +9,7 @@ AI mistakes that were observed and how they were caught.
 | 19-11-2026 | Claude Code (agent), plan mode first | Move scanning onto today's `main` ("is it ready to push?" → "yes please") after `main` got real groups, syncing and an expense repository | Built from `main`; 209 unit tests (26 new), lint 0 errors and no new warnings except "newer version" notices; all instrumented tests, including saving to a real database and the whole "+ Add expense" flow, with and without the camera permission; emulator checks with a separate test account, online and in airplane mode | Only the scan flow goes to `main`; PR #3 stays as a reference; the team reviews the PR |
 | 20-11-2026 | Claude Code (agent) | Fix what the user found on real receipts ("the receipt total doesn't match, some prices are wrong … note if the total in app doesn't match the total from the receipt") | Reproduced with tilted receipts read by the real ML Kit model (0° correct; 2°–6° wrong); after the fix correct from −5° to 8°; parser tests for tilt, totals and split prices; device test with 4° and −6° photos; the total check tried on the emulator | Straighten rows, find the total in more ways, and always show the "Total on receipt" check |
 | 20-11-2026 | Claude Code (agent) | Whole-system review, then "do 3 and 5": upload receipt photos to Firebase Storage so other members see them (US13), and replace the scan screens' hardcoded colours with theme tokens | Device tests for the upload with a stand-in storage (upload, path queued for Firestore, give up vs. try again, nothing to upload, start-up catch-up, saving starts it); a real upload from the emulator with the test account | Upload in its own background job so the expense never waits for the photo; Storage itself must be enabled by the project owner |
+| 20-11-2026 | Claude Code (agent) | Accuracy test (NFR-6) on Danish receipts found on the web ("you can do the tests yourself"; "if it at any point can't note the total … you should be able to input yourself"), then improve the reader; later "Added some more" (5 new receipts) | Agent wrote the answer keys (`answer_key.csv`, `answer_key_new.csv`) before running the reader, then ran every photo through the app's own reader on the emulator and on a Galaxy S10e. The 5 new receipts showed the first version was overfitted; final: 75.0 % → 89.8 % on the first 10, 95.2 % → 98.4 % on the new 5. Each kept rule checked by switching it off | User approved removing the overfitted tilt rules. The answer keys must be checked against the photos by a person (see 8 below) |
 
 ## How the AI was used
 
@@ -71,7 +72,53 @@ AI mistakes that were observed and how they were caught.
    Storage is enabled. Photos are then caught up when the app next starts.
 7. **Tests checked against the bug.** The test for "pressing Save twice saves once" was run with the
    guard removed, to prove it fails without it.
+8. **Accuracy test (NFR-6), 20-11-2026: an overfitted first version, caught by fresh receipts.**
+   - **Method.** The agent typed an answer key from the photos (every item, pant and rabat line and the
+     total) and scored the app's own reader against it: a line counts when an item has exactly the
+     printed price and a recognisably similar name. The keys were written by the AI, so a person has to
+     check them against the photos before the numbers go in the report.
+   - **First version (PR #6 as opened).** Tuned on the first 10 receipts: 75.0 % → 90.3 %. The agent
+     said the number was optimistic and asked for a few fresh receipts.
+   - **The fresh receipts showed overfitting.** The user added 5 receipts; the agent wrote their answer
+     key before running the reader on them. There the tuned version read 76.2 % of the lines, while
+     the unchanged `main` read 95.2 %. Switching the rules off one at a time on all 15 showed that
+     enlarging small photos was nearly the whole gain. The three tilt rules (measure only long lines,
+     read photos under 1.5° as straight, pick the angle where prices line up best) had won one line on
+     the first 10 and lost 14 on the new ones; one-price-per-row added nothing once they were gone.
+     With the user's approval they were removed, going back to `main`'s tilt and row handling.
+   - **Final result** (the same on the emulator and the phone):
 
-AI-assisted code reaches `main` through a pull request. PRs #4 and #5 were merged by the user (Victor,
-Person 3) on 20-11-2026 for the hand-in deadline, after he tested #4 on his own phone. A teammate's
-review was not done before merging and should follow.
+     | | `main` | final |
+     |---|---|---|
+     | First 10 (rules chosen on these) | 147/196 = 75.0 % | 176/196 = 89.8 % |
+     | New 5 (used to choose what to remove) | 60/63 = 95.2 % | 62/63 = 98.4 % |
+     | All 15 | 207/259 = 79.9 % | 238/259 = 91.9 % |
+
+     The new 5 helped decide what to remove, so they are not a perfectly clean test either. Removing
+     tuned rules is less risky than adding new ones, but a few more unseen receipts would confirm the
+     number. On a Samsung Galaxy S10e a photo becomes items in at most 0.8 s, and the first read after the
+     app starts takes 0.7–0.9 s. The scan screens add a 0.9 s animation.
+   - **What stayed.** Small photos (from the web or a chat) are enlarged to 2400 px before reading.
+     Text to the right of the price column (a wine label beside the receipt) is ignored. Accepted
+     recognizer misreads: "AT DETALL" for AT BETALE, "DANNORT" for DANKORT, "2% 14,00" for "2 x 14,00".
+     Dates with a month name are skipped.
+   - **Every wrong receipt is flagged.** Each receipt with a wrong line shows a mismatch between the
+     items and the total, or has no total, so the user types it into "Total on receipt". Two problems
+     were in the photos themselves: the Jem & Fix picture cuts off its total, and a made-up Netto
+     receipt's prices don't add up to its printed total, which the app correctly reports.
+   - **Mistakes caught:**
+     - Overfitting, described above. It is the main lesson: rules tuned on the scored set look better
+       than they are, and only receipts the rules were not built on showed it.
+     - The quick replay of the saved recognizer output reported a stale result: Gradle skipped the
+       unchanged test task. Caught because the output still had the full receipts' names. All checks
+       were redone with forced reruns.
+     - A check of which tests fail reported none for every rule switched off. That was implausible;
+       the search couldn't read the multi-line test reports. Redone with an XML parser.
+     - The first month-date rule would have hidden items like "1 JULEKAGE 450 G" or "2 MAJS 340 G".
+       Found in the agent's own review of the diff; tightened, with a test.
+   - The receipt photos are not in the repository. The tests keep only the item sections' recognizer
+     output, without addresses, phone numbers or staff names.
+
+AI-assisted code reaches `main` through a pull request. PRs #4, #5 and #6 were merged by the user (Victor,
+Person 3) on 20-11-2026 for the hand-in deadline, after he tested #4 on his own phone; #6 was also checked on
+his phone and on receipts he added. A teammate's review was not done before merging and should follow.

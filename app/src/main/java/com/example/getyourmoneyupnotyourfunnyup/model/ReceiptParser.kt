@@ -145,14 +145,26 @@ object ReceiptParser {
         val cosTilt = cos(tilt)
         // How far down the receipt a line is, measured across the text.
         fun across(line: OcrLine) = (line.top + line.bottom) / 2.0 * cosTilt - (line.left + line.right) / 2.0 * sinTilt
+        // Where a line sits from left to right, measured along the text.
+        fun along(line: OcrLine) = (line.left + line.right) / 2.0 * cosTilt + (line.top + line.bottom) / 2.0 * sinTilt
+        fun halfWidth(line: OcrLine) = (line.right - line.left) / 2.0
         // A tilted line's box is taller than its text by about width × sin(tilt).
         fun textHeight(line: OcrLine) =
             maxOf(((line.bottom - line.top) - (line.right - line.left) * abs(sinTilt)) / cosTilt, (line.bottom - line.top) * 0.25)
         val lineHeight = visible.map(::textHeight).sorted()[visible.size / 2]
 
+        // Text to the right of the price column isn't on the receipt (e.g. the label of a bottle next to it).
+        // Joined onto a row it would hide that row's price.
+        val prices = visible.filter { PRICE.find(it.text.trim())?.range?.first == 0 }
+        val onReceipt = if (prices.size < 3) visible else {
+            val columnEnd = prices.map { along(it) + halfWidth(it) }.sorted()[prices.size / 2]
+            val margin = prices.map(::halfWidth).sorted()[prices.size / 2]
+            visible.filter { along(it) - halfWidth(it) <= columnEnd + margin }
+        }
+
         val groups = mutableListOf<MutableList<OcrLine>>()
         var rowAt = 0.0
-        visible.sortedBy(::across).forEach { line ->
+        onReceipt.sortedBy(::across).forEach { line ->
             val at = across(line)
             if (groups.isNotEmpty() && at - rowAt <= lineHeight / 2) {
                 groups.last() += line
@@ -205,9 +217,33 @@ object ReceiptParser {
 
     // --- Classification ------------------------------------------------------------------------------
 
-    private fun isTotal(upper: String): Boolean = TOTAL.containsMatchIn(upper)
+    private fun isTotal(upper: String): Boolean = TOTAL.containsMatchIn(upper) || startsLike(upper, TOTAL_LIKE)
 
-    private fun isPayment(upper: String): Boolean = words(upper).any { it in PAYMENT_WORDS }
+    private fun isPayment(upper: String): Boolean = words(upper).any { it in PAYMENT_WORDS } || startsLike(upper, PAYMENT_LIKE)
+
+    /**
+     * True when the row starts with one of [targets] give or take a misread letter ("AT DETALL" for
+     * "AT BETALE", "DANNORT" for "DANKORT"): one letter for short words, two for long ones.
+     */
+    private fun startsLike(upper: String, targets: List<String>): Boolean {
+        val start = words(upper)
+        return targets.any { target ->
+            val size = target.count { it == ' ' } + 1
+            start.size >= size && editDistance(start.take(size).joinToString(" "), target) <= if (target.length >= 9) 2 else 1
+        }
+    }
+
+    private fun editDistance(a: String, b: String): Int {
+        var previous = IntArray(b.length + 1) { it }
+        for (i in a.indices) {
+            val current = IntArray(b.length + 1).also { it[0] = i + 1 }
+            for (j in b.indices) {
+                current[j + 1] = minOf(previous[j + 1] + 1, current[j] + 1, previous[j] + if (a[i] == b[j]) 0 else 1)
+            }
+            previous = current
+        }
+        return previous[b.length]
+    }
 
     private fun isIgnored(upper: String): Boolean =
         words(upper).any { it in IGNORED_WORDS } || IGNORED_PHRASES.any { it in upper } || DATE_OR_TIME.containsMatchIn(upper)
@@ -245,14 +281,24 @@ object ReceiptParser {
             "([-−]?)\\s*(?:(?i:kr)\\.?|DKK)?\\s*(?:[AB*]{1,2})?\\s*$",
     )
     private val DIGIT_LOOKALIKES = mapOf('O' to '0', 'o' to '0', 'l' to '1', 'I' to '1', 'S' to '5')
+    /** "2 x 7,00 [14,00]"; the recognizer often reads the "x" as "%", "K", "×" or "*". */
     private val QUANTITY =
-        Regex("^(\\d+)\\s*(?:X|STK\\.?\\s*(?:X|Á|À|A)?|Á|À|@)\\s*(\\d+ ?[,.] ?\\d{2})(?:\\s+(\\d+ ?[,.] ?\\d{2}))?\\s*[AB*]{0,2}\\s*$")
+        Regex("^(\\d+)\\s*(?:STK\\.?\\s*(?:X|Á|À|A)?|[X×%*KÁÀ@])\\s*(\\d+ ?[,.] ?\\d{2})(?:\\s+(\\d+ ?[,.] ?\\d{2}))?\\s*[AB*]{0,2}\\s*$")
     /** "TOTAL", "Total DKK", "SUM", "I alt", "Køb i alt", "At betale", "Til betaling" (not "Subtotal"). */
     private val TOTAL = Regex("^(?:TOTAL|TOTALT|SUM)\\b|\\b(?:I ALT|AT BETALE|TIL BETALING)\\b")
 
     /** Card and MobilePay lines print the amount paid, which is the total. Cash lines don't (change). */
-    private val PAYMENT_WORDS = setOf("DANKORT", "VISA", "MASTERCARD", "MAESTRO", "MOBILEPAY", "BELØB", "KORTBETALING")
-    private val DATE_OR_TIME = Regex("\\b\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}\\b")
+    private val PAYMENT_WORDS = setOf("DANKORT", "VISA", "MASTERCARD", "MAESTRO", "MOBILEPAY", "BELØB", "KORTBETALING", "BETALINGSKORT")
+
+    /** Total and payment words that are long enough to recognise with a misread letter. */
+    private val TOTAL_LIKE = listOf("TOTAL", "AT BETALE", "TIL BETALING")
+    private val PAYMENT_LIKE = listOf("DANKORT", "BETALINGSKORT", "MOBILEPAY", "MASTERCARD")
+    private val DATE_OR_TIME = Regex(
+        "\\b\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}\\b|" +
+            // "10. dec 2013", "3 NOVEMBER 2026"; whole month names and a year, so "1 JULEKAGE 450 G" is an item
+            "\\b\\d{1,2}\\.? ?(?:JAN(?:UAR)?|FEB(?:RUAR)?|MAR(?:TS)?|APR(?:IL)?|MAJ|MAY|JUNI?|JULI?|AUG(?:UST)?|" +
+            "SEP(?:T(?:EMBER)?)?|OKT(?:OBER)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)\\.? \\d{4}\\b",
+    )
     private val IGNORED_WORDS = setOf(
         "MOMS", "MOMSBELØB", "KONTANT", "BYTTEPENGE", "RETUR",
         "CVR", "TLF", "TELEFON", "KVITTERING", "BON", "KASSE", "EKSPEDIENT", "TERMINAL", "SUBTOTAL", "MELLEMSUM",

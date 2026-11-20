@@ -240,6 +240,77 @@ class ReceiptParserTest {
     }
 
     @Test
+    fun misreadTotalAndCardWords_stillMarkTheTotal() {
+        // How the recognizer read "AT BETALE" and "DANKORT" on a Rema 1000 photo.
+        val scanned = receipt {
+            row("MÆLK", "10,25")
+            row("RUGBRØD", "22,00")
+            row("AT DETALL", "32,25")
+            row("DANNORT", "32,25")
+        }
+        assertEquals(3_225L, scanned.totalCents)
+        assertEquals(listOf("Mælk", "Rugbrød"), scanned.items.map { it.name })
+
+        val paidOnly = receipt { row("MÆLK", "11,95"); row("DANNORT", "11,95") }
+        assertEquals("Without a total line, the misread card payment is the total", 1_195L, paidOnly.totalCents)
+        assertEquals(listOf("Mælk"), paidOnly.items.map { it.name })
+
+        val lookalikes = receipt { row("TOTEM SLIK", "10,00"); row("DANSK OST", "20,00"); row("TOTAL", "30,00") }
+        assertEquals("Words that merely look alike are items", listOf("Totem slik", "Dansk ost"), lookalikes.items.map { it.name })
+    }
+
+    @Test
+    fun aDateWithAMonthName_isNotAnItem() {
+        // A receipt shown in a banking app starts with the date and the amount.
+        val scanned = receipt {
+            row("10. dec 2013", "220,65")
+            row("3 NOVEMBER 2026", "220,65")
+            row("HAKKET OKSEKØD", "220,65")
+            row("TOTAL", "220,65")
+        }
+        assertEquals(listOf("Hakket oksekød"), scanned.items.map { it.name })
+
+        val lookalikes = receipt {
+            row("1 JULEKAGE 450 G", "39,95")
+            row("2 MAJS 340 G", "20,00")
+            row("1 MARS 51 G", "8,00")
+            row("TOTAL", "67,95")
+        }
+        assertEquals("Items that start like a month", 3, lookalikes.items.size)
+    }
+
+    @Test
+    fun aMisreadQuantityX_stillMultiplies() {
+        // The recognizer reads the "x" in "2 x 14,00" as "%", "K", "×" or "*".
+        for (quantity in listOf("2 x 14,00", "2% 14,00", "2K 14,00", "2 × 14,00", "2* 14,00")) {
+            val scanned = receipt {
+                row("FØTEX")
+                row("BROCCOLI")
+                line(quantity)
+                row("TOTAL", "28,00")
+            }
+            assertEquals(quantity, listOf("Broccoli" to 2_800L), scanned.items.map { it.name to it.priceCents })
+        }
+    }
+
+    @Test
+    fun aUnitPriceBesideTheLineTotal_staysOnItsRow() {
+        // Some shops print the unit price in its own column. Each row gets one price first; the second
+        // price on the row must still join it rather than become a row of its own.
+        val scanned = ReceiptParser.parse(
+            listOf(
+                OcrLine("REMA 1000", 20, 0, 400, 40),
+                OcrLine("4 LETMÆLK", 20, 50, 300, 90), OcrLine("10,25", 380, 50, 460, 90), OcrLine("41,00", 540, 50, 640, 90),
+                OcrLine("RUGBRØD", 20, 100, 300, 140), OcrLine("22,00", 540, 100, 640, 140),
+                OcrLine("TOTAL", 20, 150, 300, 190), OcrLine("63,00", 540, 150, 640, 190),
+            ),
+        )
+        // The line total is the price; the unit price stays in the name, as when the row is one line.
+        assertEquals(listOf("4 letmælk 10,25" to 4_100L, "Rugbrød" to 2_200L), scanned.items.map { it.name to it.priceCents })
+        assertEquals(6_300L, scanned.totalCents)
+    }
+
+    @Test
     fun noText_givesAnEmptyReceipt() {
         val scanned = ReceiptParser.parse(emptyList())
         assertNull(scanned.merchant)
