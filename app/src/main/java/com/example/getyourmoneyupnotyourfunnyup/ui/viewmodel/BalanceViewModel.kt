@@ -6,7 +6,8 @@ import com.example.getyourmoneyupnotyourfunnyup.data.repository.BalanceLedger
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.BalanceRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.PaymentRepository
 import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.InlineActionState
-import java.util.UUID
+import com.example.getyourmoneyupnotyourfunnyup.model.SettlementReference
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.ReminderRepository
 import com.example.getyourmoneyupnotyourfunnyup.model.BalanceCalculator
 import com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer
 import com.example.getyourmoneyupnotyourfunnyup.model.SettlementCalculator
@@ -51,7 +52,9 @@ sealed interface BalanceUiState {
         val suggestions: List<DebtTransfer> = emptyList(),
         val payments: List<BalancePayment> = emptyList(),
         val paymentsAvailable: Boolean = false,
-        val isSaving: Boolean = false
+        val isSaving: Boolean = false,
+        val remindersAvailable: Boolean = false,
+        val reminderStates: Map<String, InlineActionState> = emptyMap()
     ) : BalanceUiState
 }
 
@@ -61,12 +64,14 @@ class BalanceViewModel(
     private val groupId: String,
     private val repository: BalanceRepository,
     private val calculationDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val paymentRepository: PaymentRepository? = null
+    private val paymentRepository: PaymentRepository? = null,
+    private val reminderRepository: ReminderRepository? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow<BalanceUiState>(BalanceUiState.Loading)
     val state = mutableState.asStateFlow()
     private var observation: Job? = null
     private var recording = false
+    private val sendingReminders = mutableSetOf<String>()
 
     init { observe() }
 
@@ -177,6 +182,26 @@ class BalanceViewModel(
         }
     }
 
+    fun remind(id: String) {
+        val service = reminderRepository ?: return
+        val current = mutableState.value as? BalanceUiState.Success ?: return
+        val card = current.payments.firstOrNull { it.id == id } ?: return
+        if (recording || id in sendingReminders || card.transfer.creditorId != accountId || card.transfer !in current.suggestions ||
+            current.reminderStates[id] is InlineActionState.Done) return
+        sendingReminders += id
+        mutableState.value = current.copy(reminderStates = current.reminderStates + (id to InlineActionState.Working))
+        viewModelScope.launch {
+            val result = try { InlineActionState.Done(service.remind(accountId, groupId, card.transfer, id).syncStatus)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (error: Exception) { InlineActionState.Failed(error.message ?: "Couldn't save reminder.") }
+            finally { sendingReminders -= id }
+            val latest = mutableState.value as? BalanceUiState.Success
+            if (latest != null && latest.payments.any { it.id == id })
+                mutableState.value = latest.copy(reminderStates = latest.reminderStates +
+                    (id to (latest.reminderStates[id]?.takeIf { it is InlineActionState.Done } ?: result)))
+        }
+    }
+
     private fun mergePayments(
         next: BalanceUiState.Success,
         ledger: BalanceLedger,
@@ -195,15 +220,21 @@ class BalanceViewModel(
                     remaining.remove(card.transfer)
                     card
                 }
-                remaining.remove(card.transfer) -> card
+                card.id == SettlementReference.id(groupId, card.transfer, ledger.expenses, ledger.settlements) && remaining.remove(card.transfer) -> card
                 else -> null // Changed suggestions dismiss stale confirmations and failed attempts.
             }
         } + remaining.map { transfer ->
-            BalancePayment(UUID.randomUUID().toString(), transfer,
+            BalancePayment(SettlementReference.id(groupId, transfer, ledger.expenses, ledger.settlements), transfer,
                 next.members.first { it.userId == transfer.debtorId }.name,
                 next.members.first { it.userId == transfer.creditorId }.name)
         }
-        return next.copy(payments = cards, paymentsAvailable = paymentRepository != null, isSaving = recording)
+        val reminders = cards.associate { card ->
+            val saved = ledger.reminders.firstOrNull { it.obligationId == card.id && it.creditorId == accountId }
+            card.id to (saved?.let { InlineActionState.Done(it.syncStatus) }
+                ?: previous?.reminderStates?.get(card.id) ?: InlineActionState.Idle)
+        }
+        return next.copy(payments = cards, paymentsAvailable = paymentRepository != null, isSaving = recording,
+            remindersAvailable = reminderRepository != null, reminderStates = reminders)
     }
 
     private fun present(ledger: BalanceLedger): BalanceUiState.Success {

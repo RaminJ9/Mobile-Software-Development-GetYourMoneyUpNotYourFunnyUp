@@ -4,7 +4,8 @@ enum class SyncEntityType {
     USER,
     GROUP,
     EXPENSE,
-    SETTLEMENT;
+    SETTLEMENT,
+    REMINDER;
 
     companion object {
         fun fromValue(value: String?): SyncEntityType =

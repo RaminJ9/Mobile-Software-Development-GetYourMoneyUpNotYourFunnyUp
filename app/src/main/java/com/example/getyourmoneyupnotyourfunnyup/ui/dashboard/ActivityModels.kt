@@ -21,21 +21,23 @@ data class ActivityEvent(
     val unread: Boolean = false,
     val payment: OutstandingPayment? = null,
     val syncStatus: SyncStatus? = null,
-    val expenseTitle: String? = null
+    val expenseTitle: String? = null,
+    val paymentAvailable: Boolean = true
 )
 
 data class ActivityData(
     val userId: String,
     val events: List<ActivityEvent>? = null,
     val nowMillis: Long = System.currentTimeMillis(),
-    val sync: SyncPresentation = SyncPresentation()
+    val sync: SyncPresentation = SyncPresentation(),
+    val paymentStatuses: Map<String, SyncStatus> = emptyMap()
 )
 
 fun interface SyncRetryActions {
     suspend fun retry(event: ActivityEvent): SyncStatus
 }
 
-fun ActivityEvent.canPay(userId: String): Boolean = type == ActivityType.Reminder && payment?.let {
+fun ActivityEvent.canPay(userId: String): Boolean = type == ActivityType.Reminder && paymentAvailable && payment?.let {
     it.groupId == group.group.id && it.transfer.debtorId == userId &&
     it.transfer.currency == "DKK" && it.transfer.amountCents > 0
 } == true

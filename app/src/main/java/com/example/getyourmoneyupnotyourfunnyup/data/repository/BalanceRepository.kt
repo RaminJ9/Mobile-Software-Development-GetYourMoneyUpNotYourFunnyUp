@@ -17,7 +17,8 @@ data class BalanceLedger(
     val group: Group,
     val namesByUserId: Map<String, String>,
     val expenses: List<Expense>,
-    val settlements: List<Settlement>
+    val settlements: List<Settlement>,
+    val reminders: List<com.example.getyourmoneyupnotyourfunnyup.model.Reminder> = emptyList()
 )
 
 fun interface BalanceRepository {
@@ -37,7 +38,8 @@ class LocalBalanceRepository(
             DatabaseContract.GroupMembersTable.TABLE_NAME,
             DatabaseContract.ExpensesTable.TABLE_NAME,
             DatabaseContract.ExpenseSplitsTable.TABLE_NAME,
-            DatabaseContract.SettlementsTable.TABLE_NAME
+            DatabaseContract.SettlementsTable.TABLE_NAME,
+            DatabaseContract.RemindersTable.TABLE_NAME
         ).map {
             val snapshot = withContext(Dispatchers.IO) { readSnapshot(accountId, groupId) }
             checkAccount(accountId)
@@ -79,7 +81,7 @@ class LocalBalanceRepository(
                 group = group.toDomain(members.map { it.toDomain(names[it.userId].orEmpty()) }),
                 namesByUserId = names,
                 expenses = expenses,
-                settlements = settlements
+                settlements = settlements, reminders = database.reminderDao.forGroup(groupId)
             )
         }
     }

@@ -36,12 +36,11 @@ class GroupDao(private val database: AppDatabase) {
         val db = database.writableDatabase
         db.beginTransaction()
         try {
-            db.insertWithOnConflict(
-                GroupsTable.TABLE_NAME,
-                null,
-                group.toContentValues(),
-                SQLiteDatabase.CONFLICT_REPLACE
-            )
+            val values = group.toContentValues()
+            if (db.update(GroupsTable.TABLE_NAME, values, "${GroupsTable.COL_ID} = ?", arrayOf(group.id)) == 0)
+                db.insertOrThrow(GroupsTable.TABLE_NAME, null, values)
+            // Replace membership rows explicitly, without deleting the parent group and its ledger.
+            db.delete(GroupMembersTable.TABLE_NAME, "${GroupMembersTable.COL_GROUP_ID} = ?", arrayOf(group.id))
             for (member in members) {
                 db.insertWithOnConflict(
                     GroupMembersTable.TABLE_NAME,
@@ -59,12 +58,9 @@ class GroupDao(private val database: AppDatabase) {
 
     fun upsertGroup(group: GroupEntity) {
         val db = database.writableDatabase
-        db.insertWithOnConflict(
-            GroupsTable.TABLE_NAME,
-            null,
-            group.toContentValues(),
-            SQLiteDatabase.CONFLICT_REPLACE
-        )
+        val values = group.toContentValues()
+        if (db.update(GroupsTable.TABLE_NAME, values, "${GroupsTable.COL_ID} = ?", arrayOf(group.id)) == 0)
+            db.insertOrThrow(GroupsTable.TABLE_NAME, null, values)
         database.notifyTableChanged(GroupsTable.TABLE_NAME)
     }
 

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class ProfilePreference { Alcohol, Meat, NewExpenses, ChangedExpenses, PaymentReminders, SyncUpdates }
-data class ProfileDraft(val name: String, val phone: String)
+data class ProfileDraft(val name: String, val phone: String, val email: String = "")
 
 sealed interface ProfileUiState {
     data class Success(
@@ -20,7 +20,8 @@ sealed interface ProfileUiState {
         val isSaving: Boolean = false,
         val errorMessage: String? = null,
         val saved: Boolean = false,
-        val canSave: Boolean = true
+        val canSave: Boolean = true,
+        val infoMessage: String? = null
     ) : ProfileUiState
 }
 
@@ -49,13 +50,14 @@ class ProfileViewModel(initialUser: User, private val repository: ProfileReposit
     fun edit() {
         val current = state.value
         if (!current.isSaving && current.canSave) mutableState.value = current.copy(
-            draft = ProfileDraft(current.user.displayName, current.user.phoneNumber.orEmpty()), errorMessage = null, saved = false
+            draft = ProfileDraft(current.user.displayName, current.user.phoneNumber.orEmpty(), current.user.email), errorMessage = null, saved = false
         )
     }
     fun cancel() {
         if (!state.value.isSaving) mutableState.value = state.value.copy(draft = null, errorMessage = null)
     }
     fun setName(name: String) = updateDraft { copy(name = name) }
+    fun setEmail(email: String) = updateDraft { copy(email = email) }
     fun setPhone(phone: String) = updateDraft { copy(phone = phone) }
     private fun updateDraft(change: ProfileDraft.() -> ProfileDraft) {
         val current = state.value
@@ -75,7 +77,13 @@ class ProfileViewModel(initialUser: User, private val repository: ProfileReposit
             mutableState.value = current.copy(errorMessage = "Enter a phone number using digits and an optional country code.")
             return
         }
-        save(ProfileChanges.fromUser(current.user).copy(displayName = name, phoneNumber = phone), closeEditor = true)
+        val email = draft.email.trim()
+        if (!Regex("^[^\\s@]+@[^\\s@]+$").matches(email)) {
+            mutableState.value = current.copy(errorMessage = "Enter a valid email address.")
+            return
+        }
+        save(ProfileChanges.fromUser(current.user).copy(displayName = name, phoneNumber = phone), closeEditor = true,
+            newEmail = email.takeIf { !it.equals(current.user.email, ignoreCase = true) })
     }
 
     fun toggle(preference: ProfilePreference, enabled: Boolean) {
@@ -94,18 +102,20 @@ class ProfileViewModel(initialUser: User, private val repository: ProfileReposit
         save(next, closeEditor = false)
     }
 
-    private fun save(changes: ProfileChanges, closeEditor: Boolean) {
+    private fun save(changes: ProfileChanges, closeEditor: Boolean, newEmail: String? = null) {
         val source = repository ?: return
         val current = state.value
         if (current.isSaving) return
         mutableState.value = current.copy(isSaving = true, errorMessage = null, saved = false)
         viewModelScope.launch {
             try {
+                if (newEmail != null) source.requestEmailChange(accountId, newEmail)
                 val saved = source.save(accountId, changes)
                 val latest = state.value
                 mutableState.value = latest.copy(
                     user = if (saved.updatedAt > latest.user.updatedAt) saved else latest.user,
-                    draft = if (closeEditor) null else latest.draft, isSaving = false, saved = true
+                    draft = if (closeEditor) null else latest.draft, isSaving = false, saved = true,
+                    infoMessage = if (newEmail != null) "Verification link sent to $newEmail. Open it, then log out and log in with your new email." else latest.infoMessage
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled

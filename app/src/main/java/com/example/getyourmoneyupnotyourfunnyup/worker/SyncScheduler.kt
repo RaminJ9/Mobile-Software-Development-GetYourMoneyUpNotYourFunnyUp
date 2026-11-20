@@ -19,11 +19,11 @@ import kotlinx.coroutines.runInterruptible
 enum class ScheduleResult { Pending, Unavailable, AccountChanged, Rejected }
 
 class SyncScheduler(private val workManager: WorkManager, private val runner: SyncRunner) {
-    suspend fun scheduleAutomatic(accountId: String): ScheduleResult = schedule(accountId, manual = false)
+    suspend fun scheduleAutomatic(accountId: String): ScheduleResult = schedule(accountId, manual = false, append = true)
     suspend fun scheduleManual(accountId: String): ScheduleResult = schedule(accountId, manual = true)
-    suspend fun recoverAfterRestart(accountId: String): ScheduleResult = scheduleAutomatic(accountId)
+    suspend fun recoverAfterRestart(accountId: String): ScheduleResult = schedule(accountId, manual = false)
 
-    private suspend fun schedule(accountId: String, manual: Boolean): ScheduleResult {
+    private suspend fun schedule(accountId: String, manual: Boolean, append: Boolean = false): ScheduleResult {
         when (runner.readiness(accountId)) {
             SyncRunResult.Unavailable -> return ScheduleResult.Unavailable
             SyncRunResult.AccountChanged -> return ScheduleResult.AccountChanged
@@ -31,7 +31,7 @@ class SyncScheduler(private val workManager: WorkManager, private val runner: Sy
         }
         return try {
             runInterruptible(Dispatchers.IO) {
-                workManager.enqueueUniqueWork(workName(accountId, manual), ExistingWorkPolicy.KEEP, request(accountId))
+                workManager.enqueueUniqueWork(workName(accountId, manual), if (append) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP, request(accountId))
                     .result.get(5, TimeUnit.SECONDS)
             }
             ScheduleResult.Pending

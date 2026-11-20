@@ -34,7 +34,7 @@ class ProfileScreenTest {
         compose.runOnIdle { assertTrue(loggedOut) }
     }
 
-    @Test fun editSupportsSaveCancelAndReadOnlyEmail() {
+    @Test fun editSupportsSaveCancelAndVerificationEmailDraft() {
         val state = mutableStateOf(ProfileUiState.Success(user))
         val actions = mutableListOf<ProfileAction>()
         compose.setContent {
@@ -42,8 +42,9 @@ class ProfileScreenTest {
                 ProfileScreen(state.value, { action ->
                     actions += action
                     when (action) {
-                        ProfileAction.Edit -> state.value = state.value.copy(draft = ProfileDraft("Ramin", ""))
+                        ProfileAction.Edit -> state.value = state.value.copy(draft = ProfileDraft("Ramin", "", user.email))
                         is ProfileAction.Name -> state.value = state.value.copy(draft = state.value.draft!!.copy(name = action.value))
+                        is ProfileAction.Email -> state.value = state.value.copy(draft = state.value.draft!!.copy(email = action.value))
                         ProfileAction.Cancel -> state.value = state.value.copy(draft = null)
                         else -> Unit
                     }
@@ -53,6 +54,8 @@ class ProfileScreenTest {
         compose.onNodeWithText("Edit").performClick()
         compose.onNodeWithText("Edit profile").assertExists()
         compose.onNodeWithText("Full name").performTextReplacement("Ramin Javed")
+        compose.onNodeWithText("Email", substring = false).performTextReplacement("verified@example.com")
+        compose.runOnIdle { assertEquals("verified@example.com", state.value.draft!!.email) }
         compose.onNodeWithText("Save changes").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(ProfileAction.Save, actions.last()) }
         compose.onNodeWithText("Cancel").performScrollTo().performClick()

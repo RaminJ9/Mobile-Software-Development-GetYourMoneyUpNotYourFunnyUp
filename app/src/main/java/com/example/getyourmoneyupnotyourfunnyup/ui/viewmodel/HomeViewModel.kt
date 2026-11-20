@@ -100,7 +100,9 @@ class HomeViewModel(
                             sourceError = null,
                             confirmingAll = current.confirmingAll &&
                                 current.data.finances?.outstandingPayments == data.finances?.outstandingPayments,
-                            paymentStates = current.paymentStates.filterKeys { it in unchangedIds || it in recorded },
+                            paymentStates = current.paymentStates.filterKeys { it in unchangedIds || it in recorded }.mapValues { (id, action) ->
+                                data.paidOutPayments?.firstOrNull { it.settlement.id == id }?.let { InlineActionState.Done(it.settlement.syncStatus) } ?: action
+                            },
                             recordedPayments = recorded
                         )
                     }

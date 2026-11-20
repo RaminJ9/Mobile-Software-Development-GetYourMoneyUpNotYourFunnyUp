@@ -62,6 +62,8 @@ class FirestoreSyncQueueProcessorTest {
         val groups = linkedMapOf<String, Pair<GroupEntity, List<GroupMemberEntity>>>()
         val expenses = linkedMapOf<String, Pair<ExpenseEntity, List<ExpenseSplitEntity>>>()
         val settlements = linkedMapOf<String, SettlementEntity>()
+        val reminders = linkedMapOf<String, com.example.getyourmoneyupnotyourfunnyup.model.Reminder>()
+        override fun getReminder(reminderId: String) = reminders[reminderId]
 
         override fun nextPendingItem(): SyncQueueEntity? = queue.minByOrNull { it.queueId }
 
@@ -101,6 +103,7 @@ class FirestoreSyncQueueProcessorTest {
                         expenses[item.entityId] = pair.first.copy(syncStatus = SyncStatus.SYNCED) to pair.second
                     }
                 }
+                SyncEntityType.REMINDER -> reminders[item.entityId]?.let { reminders[item.entityId] = it.copy(syncStatus = SyncStatus.SYNCED) }
                 SyncEntityType.SETTLEMENT -> {
                     val settlement = settlements[item.entityId]
                     if (settlement != null) {
@@ -129,6 +132,7 @@ class FirestoreSyncQueueProcessorTest {
                 SyncEntityType.EXPENSE -> expenses[item.entityId]?.let { (e, s) ->
                     expenses[item.entityId] = e.copy(syncStatus = SyncStatus.FAILED) to s
                 }
+                SyncEntityType.REMINDER -> reminders[item.entityId]?.let { reminders[item.entityId] = it.copy(syncStatus = SyncStatus.FAILED) }
                 SyncEntityType.SETTLEMENT -> settlements[item.entityId]?.let {
                     settlements[item.entityId] = it.copy(syncStatus = SyncStatus.FAILED)
                 }
@@ -298,4 +302,22 @@ class FirestoreSyncQueueProcessorTest {
         assertEquals(SyncStatus.SYNCED, store.expenses["e_offline"]!!.first.syncStatus)
         assertEquals("Offline Coffee", remote.documents["groups/g1/expenses/e_offline"]?.get("title"))
     }
+    @Test fun reminderRetriesOfflineAndOnlyCreditorCanPublishIt() = runTest {
+        val store = InMemorySyncQueueStore(); val remote = FakeRemoteDocumentStore()
+        val reminder = com.example.getyourmoneyupnotyourfunnyup.model.Reminder("r", "g", "debtor", "creditor", 12345, "DKK", "pay-id", 1)
+        store.reminders["r"] = reminder
+        store.groups["g"] = GroupEntity("g", "Trip", createdBy = "creditor") to listOf(GroupMemberEntity("g", "debtor"), GroupMemberEntity("g", "creditor"))
+        store.queue += SyncQueueEntity(1, SyncEntityType.REMINDER, "r", SyncAction.CREATE,
+            SyncPayloadJson.encode(com.example.getyourmoneyupnotyourfunnyup.data.remote.ReminderMapper.toMap(reminder)))
+        var account = "debtor"
+        val processor = FirestoreSyncQueueProcessor(store, remote) { account }
+        assertEquals(SyncStep.NeedsAttention, processor.processNext(account)); assertTrue(remote.documents.isEmpty())
+        account = "creditor"; remote.failNextWith = IllegalStateException("Offline")
+        assertEquals(SyncStep.RetryLater, processor.processNext(account))
+        assertEquals(SyncStatus.FAILED, store.reminders["r"]!!.syncStatus)
+        assertEquals(SyncStep.Acknowledged(account), processor.processNext(account))
+        assertEquals(12345L, remote.documents["groups/g/reminders/r"]!!["amountCents"])
+        assertEquals(SyncStatus.SYNCED, store.reminders["r"]!!.syncStatus); assertTrue(store.queue.isEmpty())
+    }
+
 }

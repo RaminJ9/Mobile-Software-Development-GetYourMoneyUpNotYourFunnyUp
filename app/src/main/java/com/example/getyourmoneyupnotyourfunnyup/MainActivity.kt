@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,8 +27,6 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.AuthRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.FirebaseProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.RepositoryAuthSessionSource
-import com.example.getyourmoneyupnotyourfunnyup.data.sync.FirestoreSyncQueueProcessor
-import com.example.getyourmoneyupnotyourfunnyup.data.sync.SyncRunner
 import com.example.getyourmoneyupnotyourfunnyup.ui.navigation.AppShell
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -109,24 +110,22 @@ fun AppRoot(modifier: Modifier = Modifier) {
             val profileRepository = remember(current.user.id, database) {
                 FirebaseProfileRepository(database)
             }
-            val syncRunner = remember(current.user.id, database) {
-                val accountProvider = { Firebase.auth.currentUser?.uid ?: current.user.id }
-                val processor = FirestoreSyncQueueProcessor(
-                    database = database,
-                    currentAccountId = accountProvider
-                )
-                SyncRunner(
-                    processor = processor,
-                    currentAccount = accountProvider
-                )
+            var cloudReadError by remember(current.user.id) { mutableStateOf<String?>(null) }
+            DisposableEffect(current.user.id, database) {
+                val session = com.example.getyourmoneyupnotyourfunnyup.data.sync.RemoteGroupSession(database, current.user.id,
+                    { Firebase.auth.currentUser?.uid }, com.google.firebase.firestore.FirebaseFirestore.getInstance(),
+                    onError = { cloudReadError = it })
+                onDispose { session.close() }
             }
-            LaunchedEffect(current.user.id, syncRunner) {
+            val syncScheduler = remember { (applicationContext as MoneyApplication).syncScheduler }
+            LaunchedEffect(current.user.id, syncScheduler) {
+                var known = emptySet<Long>()
                 database.syncQueueDao.observePendingQueue().collect { pending ->
-                    if (pending.isNotEmpty()) {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            syncRunner.run(current.user.id)
-                        }
+                    val ids = pending.map { it.queueId }.toSet()
+                    if (ids.any { it !in known } && Firebase.auth.currentUser?.uid == current.user.id) {
+                        syncScheduler.scheduleAutomatic(current.user.id)
                     }
+                    known = ids
                 }
             }
             AppShell(
@@ -134,7 +133,8 @@ fun AppRoot(modifier: Modifier = Modifier) {
                 user = current.user,
                 onLogout = authViewModel::logout,
                 profileRepository = profileRepository,
-                database = database
+                database = database,
+                cloudReadError = cloudReadError
             )
         }
     }

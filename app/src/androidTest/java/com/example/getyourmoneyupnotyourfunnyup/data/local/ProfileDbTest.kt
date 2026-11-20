@@ -70,7 +70,7 @@ class ProfileDbTest {
             legacy.version = version
         }
         val migrated = open()
-        assertEquals(4, migrated.readableDatabase.version)
+        assertEquals(5, migrated.readableDatabase.version)
         val user = migrated.userDao.getUserById("u")!!.toDomain()
         assertEquals("Existing", user.displayName)
         assertEquals("u@test", user.email)

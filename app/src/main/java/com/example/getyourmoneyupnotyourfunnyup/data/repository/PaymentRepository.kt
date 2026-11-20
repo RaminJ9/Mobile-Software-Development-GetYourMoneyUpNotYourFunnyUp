@@ -70,6 +70,9 @@ class LocalPaymentRepository(
                     require(transfer in SettlementCalculator.suggest(balances)) {
                         "This balance changed. Review the latest payment suggestions."
                     }
+                    if (requestId.startsWith("pay-")) require(requestId == com.example.getyourmoneyupnotyourfunnyup.model.SettlementReference.id(groupId, transfer, expenses, settlements)) {
+                        "This payment is out of date. Review the current balance."
+                    }
                     val payment = Settlement(
                         id = requestId, groupId = groupId, debtorId = transfer.debtorId,
                         creditorId = transfer.creditorId, amountCents = transfer.amountCents,
@@ -90,7 +93,7 @@ class LocalPaymentRepository(
                         put(Payments.COL_SYNC_STATUS, payment.syncStatus.name)
                     })
                     val payload = SyncPayloadJson.encode(
-                        SettlementDocumentMapper.toMap(payment, recordedBy = accountId)
+                        SettlementDocumentMapper.toMap(payment, recordedBy = accountId) + ("queuedBy" to accountId)
                     )
                     insertOrThrow(Queue.TABLE_NAME, null, ContentValues().apply {
                         put(Queue.COL_ENTITY_TYPE, "SETTLEMENT")

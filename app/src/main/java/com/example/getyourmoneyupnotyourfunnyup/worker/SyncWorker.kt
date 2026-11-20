@@ -33,6 +33,6 @@ class SyncWorker(
 class SyncWorkerFactory(processor: SyncQueueProcessor?, currentAccount: () -> String?) : WorkerFactory() {
     val runner = SyncRunner(processor, currentAccount)
 
-    override fun createWorker(context: Context, workerClassName: String, parameters: WorkerParameters): ListenableWorker? =
-        if (workerClassName == SyncWorker::class.java.name) SyncWorker(context, parameters, runner) else null
+    override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker? =
+        if (workerClassName == SyncWorker::class.java.name) SyncWorker(appContext, workerParameters, runner) else null
 }

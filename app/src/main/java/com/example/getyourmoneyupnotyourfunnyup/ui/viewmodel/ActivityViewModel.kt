@@ -29,6 +29,9 @@ sealed interface ActivityUiState {
         val hasUnread: Boolean = events.any { it.unread && it.id !in readIds }
         fun actionFor(event: ActivityEvent): InlineActionState {
             val action = actions[event.id] ?: InlineActionState.Idle
+            if (event.type == ActivityType.Reminder) {
+                data.paymentStatuses[event.payment?.id]?.let { return InlineActionState.Done(it) }
+            }
             if (event.type != ActivityType.SyncFailure) return action
             return when (event.syncStatus) {
                 SyncStatus.SYNCED -> InlineActionState.Done(SyncStatus.SYNCED)
@@ -43,7 +46,8 @@ sealed interface ActivityUiState {
 class ActivityViewModel(
     private val source: Flow<ActivityData>,
     private val settlements: SettlementActions? = null,
-    private val retries: SyncRetryActions? = null
+    private val retries: SyncRetryActions? = null,
+    private val saveRead: (suspend (Set<String>) -> Unit)? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow<ActivityUiState>(ActivityUiState.Loading)
     val state = mutableState.asStateFlow()
@@ -102,15 +106,30 @@ class ActivityViewModel(
     }
 
     fun selectFilter(filter: ActivityFilter) = update { it.copy(filter = filter) }
-    fun markAllRead() = update { it.copy(readIds = it.readIds + it.events.map { event -> event.id }) }
+    fun markAllRead() {
+        val ids = (mutableState.value as? ActivityUiState.Success)?.events?.map { it.id }?.toSet() ?: return
+        update { it.copy(readIds = it.readIds + ids) }
+        persistRead(ids)
+    }
+    private fun persistRead(ids: Set<String>) {
+        val service = saveRead ?: return
+        viewModelScope.launch {
+            try { service(ids) } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { update { it.copy(sourceError = "Couldn't save read state. Try again.") } }
+        }
+    }
 
-    fun askPayment(id: String) = update {
+    fun askPayment(id: String) {
+        persistRead(setOf(id))
+        update {
         val event = it.events.firstOrNull { event -> event.id == id }
         if (event == null || !it.canSettle || !event.canPay(it.data.userId) || id in activeIds || it.actionFor(event) is InlineActionState.Done) it
         else it.copy(
             actions = it.actions.filterValues { value -> value != InlineActionState.Confirming } + (id to InlineActionState.Confirming),
             readIds = it.readIds + id
         )
+    }
+
     }
 
     fun cancelPayment() = update { it.copy(actions = it.actions.filterValues { value -> value != InlineActionState.Confirming }) }

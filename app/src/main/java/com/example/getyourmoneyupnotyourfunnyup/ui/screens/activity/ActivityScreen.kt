@@ -239,7 +239,7 @@ private fun ActivityCard(event: ActivityEvent, state: ActivityUiState.Success, o
                         ).semantics { contentDescription = "Unread" })
                 }
             }
-            if (event.canPay(state.data.userId)) {
+            if (event.canPay(state.data.userId) || event.type == ActivityType.Reminder && event.payment != null && action is InlineActionState.Done) {
                 val payment = event.payment!!
                 InlinePaymentActions(
                     action,

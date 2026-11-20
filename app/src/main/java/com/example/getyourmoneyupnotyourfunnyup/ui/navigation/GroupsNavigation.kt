@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -24,6 +23,7 @@ import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.balances.BalanceRoute
+import com.example.getyourmoneyupnotyourfunnyup.ui.screens.expenses.ExpenseRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.theme.*
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.*
 import kotlinx.coroutines.flow.Flow
@@ -75,6 +75,7 @@ internal fun GroupDetailRoute(
     groupId: String,
     membersVm: GroupMembersViewModel,
     balancesVm: BalanceViewModel,
+    expensesVm: ExpenseViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onAddExpense: () -> Unit = {}
@@ -85,13 +86,13 @@ internal fun GroupDetailRoute(
     val onMembersAction = rememberMembersActions(membersVm)
 
     val scroll = rememberScrollState()
-    // Balances has its own lazy list, which needs a bounded height rather than a scrolling parent.
-    val balancesOpen = section == GroupSection.Balances
+    // The financial lists need bounded height; Members keeps its existing scrolling container.
+    val membersOpen = section == GroupSection.Members
     Column(modifier.fillMaxSize().background(AppColors.White)
-        .then(if (balancesOpen) Modifier else Modifier.verticalScroll(scroll))) {
+        .then(if (membersOpen) Modifier.verticalScroll(scroll) else Modifier)) {
         BackTopBar(header?.name ?: "Group", onBack)
         Column(
-            Modifier.then(if (balancesOpen) Modifier.weight(1f) else Modifier)
+            Modifier.then(if (membersOpen) Modifier else Modifier.weight(1f))
                 .padding(start = AppSpacing.Space16, end = AppSpacing.Space16, bottom = AppSpacing.Space24),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -138,7 +139,7 @@ internal fun GroupDetailRoute(
                 GroupSection.Activity -> {
                     // Opens the scan flow for this group (scan a receipt or type the expense in).
                     DashboardButton("+ Add expense", onAddExpense, Modifier.fillMaxWidth())
-                    SectionPlaceholder("Expenses and payments for this group will show up here.")
+                    ExpenseRoute(expensesVm, modifier = Modifier.weight(1f))
                 }
                 GroupSection.Balances -> BalanceRoute(balancesVm, onBack, modifier = Modifier.weight(1f), showHeader = false)
             }
@@ -161,15 +162,4 @@ private fun rememberMembersActions(vm: GroupMembersViewModel): (MembersAction) -
             is MembersAction.AddSuggestion -> vm.addSuggestion(action.contact)
         }
     }
-}
-
-@Composable
-private fun SectionPlaceholder(text: String) {
-    Text(
-        text,
-        Modifier.fillMaxWidth().background(AppColors.SurfaceSoft, AppShapes.ListCard).padding(AppSpacing.Space20),
-        style = AppTypography.Body,
-        color = AppColors.Ink600,
-        textAlign = TextAlign.Center
-    )
 }

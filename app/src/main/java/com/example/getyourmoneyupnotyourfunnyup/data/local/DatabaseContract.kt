@@ -6,7 +6,7 @@ package com.example.getyourmoneyupnotyourfunnyup.data.local
  */
 object DatabaseContract {
     const val DATABASE_NAME = "get_your_money_up.db"
-    const val DATABASE_VERSION = 4
+    const val DATABASE_VERSION = 5
 
     object UsersTable {
         const val TABLE_NAME = "users"
@@ -220,6 +220,30 @@ object DatabaseContract {
         """
     }
 
+    object RemindersTable {
+        const val TABLE_NAME = "reminders"
+        const val CREATE_SQL = """
+            CREATE TABLE IF NOT EXISTS reminders (
+                id TEXT PRIMARY KEY NOT NULL, group_id TEXT NOT NULL,
+                debtor_id TEXT NOT NULL, creditor_id TEXT NOT NULL,
+                amount_cents INTEGER NOT NULL, currency TEXT NOT NULL,
+                obligation_id TEXT NOT NULL, created_at INTEGER NOT NULL,
+                sync_status TEXT NOT NULL DEFAULT 'PENDING_INSERT',
+                FOREIGN KEY (group_id) REFERENCES "groups"(id) ON DELETE CASCADE,
+                FOREIGN KEY (debtor_id) REFERENCES users(id), FOREIGN KEY (creditor_id) REFERENCES users(id)
+            )
+        """
+    }
+    object ActivityReadsTable {
+        const val TABLE_NAME = "activity_reads"
+        const val CREATE_SQL = """
+            CREATE TABLE IF NOT EXISTS activity_reads (
+                user_id TEXT NOT NULL, event_id TEXT NOT NULL, read_at INTEGER NOT NULL,
+                PRIMARY KEY (user_id, event_id), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """
+    }
+
     val ALL_CREATE_STATEMENTS = listOf(
         UsersTable.CREATE_SQL,
         GroupsTable.CREATE_SQL,
@@ -228,6 +252,8 @@ object DatabaseContract {
         ExpenseSplitsTable.CREATE_SQL,
         SettlementsTable.CREATE_SQL,
         SyncQueueTable.CREATE_SQL,
+        RemindersTable.CREATE_SQL, ActivityReadsTable.CREATE_SQL,
+        "CREATE INDEX IF NOT EXISTS idx_reminders_group ON reminders(group_id)",
         "CREATE INDEX IF NOT EXISTS idx_group_members_user ON ${GroupMembersTable.TABLE_NAME}(${GroupMembersTable.COL_USER_ID})",
         "CREATE INDEX IF NOT EXISTS idx_expenses_group ON ${ExpensesTable.TABLE_NAME}(${ExpensesTable.COL_GROUP_ID})",
         "CREATE INDEX IF NOT EXISTS idx_expense_splits_expense ON ${ExpenseSplitsTable.TABLE_NAME}(${ExpenseSplitsTable.COL_EXPENSE_ID})",
