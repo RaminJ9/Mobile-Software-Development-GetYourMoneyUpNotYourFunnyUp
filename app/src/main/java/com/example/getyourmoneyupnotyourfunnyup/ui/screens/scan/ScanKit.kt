@@ -64,14 +64,6 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.theme.PlusJakartaSansFontFami
  * `ui/components`.
  */
 
-/** One-off shades used only by the scan screens. */
-internal object ScanColors {
-    val StarOutline = Color(0xFFA9B3AD) // Unselected group in the group picker
-    val SurfaceFaint = Color(0xFFF7F9F8) // Receipt item rows in "Check items"
-    val Scrim = Color(0x6B17201B) // Behind bottom sheets (Ink900 at 42%)
-    val AmberInputTint = Color(0xFFFFFBF0) // Text field showing a warning
-}
-
 /** Avatar colour for a palette index; negative means the signed-in user, always Green300 ("You"). */
 internal fun avatarColor(paletteIndex: Int): Color =
     if (paletteIndex < 0) AppColors.Green300 else AppColors.groupColorAt(paletteIndex)
@@ -335,8 +327,8 @@ internal fun LabeledTextField(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AppColors.Green500,
                 unfocusedBorderColor = if (isWarning) AppColors.Amber500 else AppColors.InputBorder,
-                focusedContainerColor = if (isWarning) ScanColors.AmberInputTint else AppColors.White,
-                unfocusedContainerColor = if (isWarning) ScanColors.AmberInputTint else AppColors.White,
+                focusedContainerColor = if (isWarning) AppColors.Amber50 else AppColors.White,
+                unfocusedContainerColor = if (isWarning) AppColors.Amber50 else AppColors.White,
                 cursorColor = AppColors.Green700,
             ),
         )

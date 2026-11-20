@@ -537,7 +537,7 @@ private fun ReadingLine(label: String, done: Boolean, active: Boolean) {
             when {
                 done -> AppIcon(AppIcons.Check, size = 18.dp, strokeWidth = 2.4f, tint = AppColors.Green700)
                 active -> Box(Modifier.size(8.dp).background(AppColors.Green500, CircleShape))
-                else -> Box(Modifier.size(8.dp).border(2.dp, ScanColors.StarOutline, CircleShape))
+                else -> Box(Modifier.size(8.dp).border(2.dp, AppColors.Ink400, CircleShape))
             }
         }
         Text(
@@ -749,7 +749,7 @@ private fun ReviewItemRow(item: ReviewItemUi, onAction: (ScanAction) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (item.lowConfidence) AppColors.Amber100 else ScanColors.SurfaceFaint, RoundedCornerShape(16.dp))
+            .background(if (item.lowConfidence) AppColors.Amber100 else AppColors.SurfaceSoft, RoundedCornerShape(16.dp))
             .border(1.5.dp, if (item.lowConfidence) AppColors.Amber400 else Color.Transparent, RoundedCornerShape(16.dp))
             .padding(start = 6.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -823,7 +823,7 @@ private fun GroupPickerSheet(state: ScanUiState, onAction: (ScanAction) -> Unit)
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = AppShapes.BottomSheet,
         containerColor = AppColors.White,
-        scrimColor = ScanColors.Scrim,
+        scrimColor = AppColors.Ink900.copy(alpha = 0.42f),
     ) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
