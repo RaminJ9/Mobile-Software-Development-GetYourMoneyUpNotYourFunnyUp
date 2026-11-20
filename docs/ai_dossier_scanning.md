@@ -119,6 +119,6 @@ AI mistakes that were observed and how they were caught.
    - The receipt photos are not in the repository. The tests keep only the item sections' recognizer
      output, without addresses, phone numbers or staff names.
 
-AI-assisted code reaches `main` through a pull request. PRs #4 and #5 were merged by the user (Victor,
-Person 3) on 20-11-2026 for the hand-in deadline, after he tested #4 on his own phone. A teammate's
-review was not done before merging and should follow.
+AI-assisted code reaches `main` through a pull request. PRs #4, #5 and #6 were merged by the user (Victor,
+Person 3) on 20-11-2026 for the hand-in deadline, after he tested #4 on his own phone; #6 was also checked on
+his phone and on receipts he added. A teammate's review was not done before merging and should follow.
