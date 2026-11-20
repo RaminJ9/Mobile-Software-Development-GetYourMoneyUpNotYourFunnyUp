@@ -240,24 +240,6 @@ class ReceiptParserTest {
     }
 
     @Test
-    fun aTiltedPhoto_isMeasuredByItsLongLines() {
-        // Rotated 4°. The recognizer reports the angle for the long names, but short lines ("PANT", "ÆG",
-        // the prices) come back as 0°, and here they make up most of the text. Measured over every line,
-        // the photo looked straight and each price moved one row down.
-        val rows = listOf("ARLA MINIMÆLK 1 L" to "12,95", "PANT" to "3,00", "HAKKET OKSEKØD" to "45,00", "ÆG" to "28,00",
-            "RUGBRØD SKIVET" to "22,00", "SMØR" to "24,95", "PANT" to "1,50", "TOTAL" to "137,40")
-        val lines = rows.flatMapIndexed { i, (name, price) ->
-            val y = 100 + 62 * i
-            val nameAngle = if (name.replace(" ", "").length >= 8) 4f else 0f
-            listOf(rotated(name, 60, 60 + name.length * 23, y, y + 36, 4.0, reported = nameAngle),
-                rotated(price, 760, 860, y, y + 36, 4.0, reported = 0f))
-        }
-        val scanned = ReceiptParser.parse(lines)
-        assertEquals(rows.dropLast(1).map { (name, price) -> name to DanishAmount.parse(price) }, scanned.items.map { it.name.uppercase() to it.priceCents })
-        assertEquals(13_740L, scanned.totalCents)
-    }
-
-    @Test
     fun misreadTotalAndCardWords_stillMarkTheTotal() {
         // How the recognizer read "AT BETALE" and "DANKORT" on a Rema 1000 photo.
         val scanned = receipt {

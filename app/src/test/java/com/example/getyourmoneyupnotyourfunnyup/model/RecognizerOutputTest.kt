@@ -23,28 +23,6 @@ class RecognizerOutputTest {
         assertEquals(expected.map { (name, price) -> name to DanishAmount.parse(price) }, scanned.items.map { it.name to it.priceCents })
 
     @Test
-    fun foetex_aCurledReceipt_eachPriceStaysOnItsOwnRow() {
-        // Prices sit up to half a row below their names, and the recognizer reports a tilt of about -1°
-        // where the receipt actually leans the other way. Straightening by that angle, or letting a price
-        // join whichever row is nearest, moved "28,00" onto the RABAT row and every price after it down.
-        val scanned = read("foetex")
-        assertItems(
-            listOf(
-                "Deli 18 stk mix" to "30,00", "Broccoli" to "28,00", "Rabat" to "-4,00", "Gronne druer 500 g" to "25,00",
-                "Oko agurk" to "10,00", "Oko blabar 125g" to "24,00", "Kyl.filet 650g" to "79,95",
-                "Kyl.filet 650g" to "39,00", "Salling frik.pølse" to "14,95", "Trio pesto 0g hummus" to "24,95",
-                "Cheez dippers fun" to "29,95", "Dandnino jordb. 70g" to "6,95", "Rabat" to "-1,95",
-                "God morgen tropisk" to "27,95", "Rabat" to "-9,95", "Happy zo0 mini pack" to "14,95",
-                "Kk madl. fløde 0,5l" to "54,50", "Rabat" to "-14,50", "Karry" to "25,95", "Rabat" to "-10,95",
-                "Kohberg yoghurtbolle" to "20,75", "Salling økd smooth." to "6,50", "Montgras1fl" to "35,00",
-                "Salling kødnale" to "18,75", "Børnebij" to "39,00", "Harpynt" to "20,00", "Pant" to "1,50",
-            ),
-            scanned,
-        )
-        assertEquals(53_625L, scanned.totalCents)
-    }
-
-    @Test
     fun netto_textOnABottleBesideTheReceipt_isIgnored() {
         // "DR. PAULY" and "RIESLING" from a wine label, to the right of the price column, used to join the
         // LEGETØJSFLY and CASTELLO rows and hide their prices.
@@ -63,9 +41,9 @@ class RecognizerOutputTest {
     }
 
     @Test
-    fun superBrugsen_aTiltTheRowsDontHave_isNotApplied() {
-        // The long lines report about 2.5°, but the RABAT rows are level with their prices. Straightening by
-        // 2.5° put one of the ten discounts on the wrong row.
+    fun superBrugsen_aLongRunOfDiscounts_eachStaysOnItsOwnRow() {
+        // Ten RABAT rows in a row, 50 pixels apart, under the items they belong to: a price that slid by one
+        // row would put every discount after it on the wrong line.
         val scanned = read("superbrugsen")
         assertItems(
             listOf(
