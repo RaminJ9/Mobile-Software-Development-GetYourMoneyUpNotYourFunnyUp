@@ -1,0 +1,21 @@
+// Firebase Storage rules for receipt photos (paste into Firebase console → Storage → Rules).
+//
+// The app uploads each receipt photo to receipts/{groupId}/{expenseId}.jpg (see ReceiptUpload.kt).
+// Only members of that group (the group document's memberIds in Firestore) may read or write it,
+// and uploads must be images under 12 MB, the same limit the app uses when downloading.
+// Storage must first be enabled for the project (new projects need the Blaze plan for a bucket).
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /receipts/{groupId}/{fileName} {
+      function isMember() {
+        return request.auth != null &&
+          request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
+      }
+      allow read: if isMember();
+      allow write: if isMember()
+        && request.resource.size < 12 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

@@ -8,6 +8,7 @@ AI mistakes that were observed and how they were caught.
 | 18-11-2026 | Claude Code (agent), Opus 5.5, plan mode first | Real receipt scanning ("We need to add actual scanning of the receipt"): CameraX camera, ML Kit's bundled (offline) text recognizer, our own Danish receipt parser | Unit tests for the parser and the scan screen state; 3 instrumented tests that read a drawn receipt with the real ML Kit model; camera, reading, "couldn't read" and retake checked on an emulator | Plan approved; built first on top of the hi-fi PR (#3) |
 | 19-11-2026 | Claude Code (agent), plan mode first | Move scanning onto today's `main` ("is it ready to push?" → "yes please") after `main` got real groups, syncing and an expense repository | Built from `main`; 209 unit tests (26 new), lint 0 errors and no new warnings except "newer version" notices; all instrumented tests, including saving to a real database and the whole "+ Add expense" flow, with and without the camera permission; emulator checks with a separate test account, online and in airplane mode | Only the scan flow goes to `main`; PR #3 stays as a reference; the team reviews the PR |
 | 20-11-2026 | Claude Code (agent) | Fix what the user found on real receipts ("the receipt total doesn't match, some prices are wrong … note if the total in app doesn't match the total from the receipt") | Reproduced with tilted receipts read by the real ML Kit model (0° correct; 2°–6° wrong); after the fix correct from −5° to 8°; parser tests for tilt, totals and split prices; device test with 4° and −6° photos; the total check tried on the emulator | Straighten rows, find the total in more ways, and always show the "Total on receipt" check |
+| 20-11-2026 | Claude Code (agent) | Whole-system review, then "do 3 and 5": upload receipt photos to Firebase Storage so other members see them (US13), and replace the scan screens' hardcoded colours with theme tokens | Device tests for the upload with a stand-in storage (upload, path queued for Firestore, give up vs. try again, nothing to upload, start-up catch-up, saving starts it); a real upload from the emulator with the test account | Upload in its own background job so the expense never waits for the photo; Storage itself must be enabled by the project owner |
 
 ## How the AI was used
 
@@ -64,9 +65,13 @@ AI mistakes that were observed and how they were caught.
    - Check items always shows a "Total on receipt" field and whether the items match it.
 
    The new tilt test was run without the straightening to prove it fails.
-6. **Tests checked against the bug.** The test for "pressing Save twice saves once" was run with the
+6. **An assumption checked against the real backend.** The project config names a Storage bucket, but
+   the first real upload got a 404: the bucket was never created. That is why the upload was built not
+   to hold up the expense. The expense saved and synced anyway, and the photo stays on the phone until
+   Storage is enabled. Photos are then caught up when the app next starts.
+7. **Tests checked against the bug.** The test for "pressing Save twice saves once" was run with the
    guard removed, to prove it fails without it.
 
-AI-assisted code reaches `main` through a pull request. PR #4 was merged by the user (Victor, Person 3) on
-20-11-2026 for the hand-in deadline, after he tested it on his own phone. A teammate's review was not
-done before merging and should follow.
+AI-assisted code reaches `main` through a pull request. PRs #4 and #5 were merged by the user (Victor,
+Person 3) on 20-11-2026 for the hand-in deadline, after he tested #4 on his own phone. A teammate's
+review was not done before merging and should follow.

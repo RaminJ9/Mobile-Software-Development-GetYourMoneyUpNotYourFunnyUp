@@ -1,6 +1,7 @@
 package com.example.getyourmoneyupnotyourfunnyup.data.repository
 
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
+import com.example.getyourmoneyupnotyourfunnyup.data.receipt.ReceiptUploads
 import com.example.getyourmoneyupnotyourfunnyup.model.Expense
 import com.example.getyourmoneyupnotyourfunnyup.model.ScanPerson
 import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
@@ -35,12 +36,14 @@ interface ScanSource {
 /**
  * [ScanSource] over the phone's database, so scanning and saving work offline. Groups and members
  * come from [groupRepository] (the groups owner), diet rules from the cached user profiles, and saving goes
- * through [expenses], which stores the expense with its sync-queue entry in one transaction.
+ * through [expenses], which stores the expense with its sync-queue entry in one transaction. A receipt
+ * photo is then handed to [uploads], which puts it in cloud storage for the other members.
  */
 class LocalScanSource(
     private val database: AppDatabase,
     private val groupRepository: GroupRepository,
-    private val expenses: ExpenseRepository
+    private val expenses: ExpenseRepository,
+    private val uploads: ReceiptUploads? = null,
 ) : ScanSource {
 
     override val groups: Flow<List<ScanGroup>> = groupRepository.observeGroups().map { dashboardGroups ->
@@ -90,6 +93,9 @@ class LocalScanSource(
             require(expense.splits.sumOf { it.amountOwedCents } == expense.amountCents) { "The shares don't add up to the total." }
             require(expense.splits.map { it.id }.toSet().size == expense.splits.size) { "Each person can only have one share." }
         }
-        return expenses.saveExpense(expense)
+        val saved = expenses.saveExpense(expense)
+        // The expense is saved either way; the photo follows when there is a connection.
+        if (saved.receiptLocalUri != null) runCatching { uploads?.schedule(saved.id) }
+        return saved
     }
 }
