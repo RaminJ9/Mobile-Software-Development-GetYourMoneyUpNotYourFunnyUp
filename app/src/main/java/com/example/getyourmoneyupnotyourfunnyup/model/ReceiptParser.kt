@@ -40,6 +40,9 @@ object ReceiptParser {
     /** Below this the recognizer's own confidence counts as "check this price". */
     const val MIN_CONFIDENCE = 0.8f
 
+    /** Measured tilts below this many degrees are the recognizer's noise; the receipt is read as straight. */
+    private const val MIN_TILT = 1.5
+
     fun parse(lines: List<OcrLine>): ScannedReceipt {
         val items = mutableListOf<ReceiptItem>()
         var merchant: String? = null
@@ -140,7 +143,20 @@ object ReceiptParser {
     private fun rows(lines: List<OcrLine>): List<Row> {
         val visible = lines.filter { it.text.isNotBlank() }
         if (visible.isEmpty()) return emptyList()
-        val tilt = Math.toRadians(tiltOf(visible))
+        // The recognizer's angles are noisy (a degree or two either way), and a curled receipt isn't tilted
+        // the same everywhere. Below MIN_TILT the receipt is read as straight. Above it, straight, half the
+        // measured tilt and the full tilt are tried, and the one where the prices line up best with their
+        // rows is used (straight wins a tie).
+        val measured = tiltOf(visible)
+        if (abs(measured) < MIN_TILT) return layout(visible, 0.0).rows
+        return listOf(0.0, measured / 2, measured).map { layout(visible, it) }.minBy { it.misfit }.rows
+    }
+
+    /** Rows read with the receipt straightened by [degrees]; [misfit] is how far prices sit from their rows. */
+    private class Layout(val rows: List<Row>, val misfit: Double)
+
+    private fun layout(visible: List<OcrLine>, degrees: Double): Layout {
+        val tilt = Math.toRadians(degrees)
         val sinTilt = sin(tilt)
         val cosTilt = cos(tilt)
         // How far down the receipt a line is, measured across the text.
@@ -150,29 +166,76 @@ object ReceiptParser {
             maxOf(((line.bottom - line.top) - (line.right - line.left) * abs(sinTilt)) / cosTilt, (line.bottom - line.top) * 0.25)
         val lineHeight = visible.map(::textHeight).sorted()[visible.size / 2]
 
+        // Where a line sits from left to right, measured along the text.
+        fun along(line: OcrLine) = (line.left + line.right) / 2.0 * cosTilt + (line.top + line.bottom) / 2.0 * sinTilt
+        fun halfWidth(line: OcrLine) = (line.right - line.left) / 2.0
+        // Text to the right of the price column isn't on the receipt (e.g. the label of a bottle next to it).
+        // Joined onto a row it would hide that row's price.
+        fun isLonePrice(line: OcrLine) = PRICE.find(line.text.trim())?.range?.first == 0
+        val prices = visible.filter(::isLonePrice)
+        val onReceipt = if (prices.size < 3) visible else {
+            val columnEnd = prices.map { along(it) + halfWidth(it) }.sorted()[prices.size / 2]
+            val margin = prices.map(::halfWidth).sorted()[prices.size / 2]
+            visible.filter { along(it) - halfWidth(it) <= columnEnd + margin }
+        }
+
+        // Rows are built from the lines with words. Prices on their own, often printed a little above or
+        // below their row, are then matched to rows closest pair first, one price per row: a line total
+        // printed between a "2 x 14,00" row and a "RABAT" row goes to the row whose own price it is.
         val groups = mutableListOf<MutableList<OcrLine>>()
-        var rowAt = 0.0
-        visible.sortedBy(::across).forEach { line ->
+        val groupAt = mutableListOf<Double>()
+        onReceipt.filterNot(::isLonePrice).sortedBy(::across).forEach { line ->
             val at = across(line)
-            if (groups.isNotEmpty() && at - rowAt <= lineHeight / 2) {
+            if (groups.isNotEmpty() && at - groupAt.last() <= lineHeight / 2) {
                 groups.last() += line
             } else {
                 groups += mutableListOf(line)
-                rowAt = at
+                groupAt += at
             }
         }
-        return groups.map { group ->
+        val rowCount = groups.size
+        val lonePrices = onReceipt.filter(::isLonePrice)
+        val pairs = lonePrices.indices.flatMap { p -> (0 until rowCount).map { r -> Triple(p, r, abs(groupAt[r] - across(lonePrices[p]))) } }
+            .filter { it.third <= lineHeight * 0.8 }
+            .sortedBy { it.third }
+        val placed = mutableMapOf<Int, Double>() // price -> distance to its row
+        val taken = mutableSetOf<Int>()
+        for ((p, r, distance) in pairs) {
+            if (p in placed || r in taken) continue
+            groups[r] += lonePrices[p]
+            placed[p] = distance
+            taken += r
+        }
+        val unplaced = lonePrices.indices.filterNot { it in placed }
+        unplaced.forEach { p ->
+            val at = across(lonePrices[p])
+            // A second price printed on a row (a unit price beside the line total) joins that row.
+            val row = (0 until rowCount).minByOrNull { abs(groupAt[it] - at) }?.takeIf { abs(groupAt[it] - at) <= lineHeight / 2 }
+            if (row != null) {
+                groups[row] += lonePrices[p]
+            } else {
+                groups += mutableListOf(lonePrices[p])
+                groupAt += at
+            }
+        }
+        // How far, in lines, prices sit from the rows they were matched to, plus one for each price that
+        // wasn't: small when the straightening fits.
+        val misfit = placed.values.sum() / lineHeight + unplaced.size
+        val rows = groups.indices.sortedBy { groupAt[it] }.map { groups[it] }.map { group ->
             val ordered = group.sortedBy { it.left }
             Row(ordered.joinToString(" ") { it.text.trim() }, ordered.minOf { it.confidence })
         }
+        return Layout(rows, misfit)
     }
 
     /**
-     * The receipt's tilt in degrees: the median line angle, weighted by text length. Short lines such as
-     * "6,00" often come back with angle 0 even on a tilted photo, so the long name lines decide.
+     * The receipt's tilt in degrees: the median angle of the long lines, weighted by length. Short lines
+     * such as "6,00" often come back as 0° even on a tilted photo, and logo text can be at any angle, so
+     * only lines of at least 8 characters within ±15° count (all lines when there are none).
      */
     private fun tiltOf(lines: List<OcrLine>): Double {
-        val byAngle = lines.sortedBy { it.angle }
+        val reliable = lines.filter { it.text.count { c -> !c.isWhitespace() } >= 8 && abs(it.angle) <= 15f }.ifEmpty { lines }
+        val byAngle = reliable.sortedBy { it.angle }
         val half = byAngle.sumOf { it.text.length } / 2.0
         var seen = 0
         return byAngle.first { line -> seen += line.text.length; seen >= half }.angle.toDouble()
@@ -205,9 +268,33 @@ object ReceiptParser {
 
     // --- Classification ------------------------------------------------------------------------------
 
-    private fun isTotal(upper: String): Boolean = TOTAL.containsMatchIn(upper)
+    private fun isTotal(upper: String): Boolean = TOTAL.containsMatchIn(upper) || startsLike(upper, TOTAL_LIKE)
 
-    private fun isPayment(upper: String): Boolean = words(upper).any { it in PAYMENT_WORDS }
+    private fun isPayment(upper: String): Boolean = words(upper).any { it in PAYMENT_WORDS } || startsLike(upper, PAYMENT_LIKE)
+
+    /**
+     * True when the row starts with one of [targets] give or take a misread letter ("AT DETALL" for
+     * "AT BETALE", "DANNORT" for "DANKORT"): one letter for short words, two for long ones.
+     */
+    private fun startsLike(upper: String, targets: List<String>): Boolean {
+        val start = words(upper)
+        return targets.any { target ->
+            val size = target.count { it == ' ' } + 1
+            start.size >= size && editDistance(start.take(size).joinToString(" "), target) <= if (target.length >= 9) 2 else 1
+        }
+    }
+
+    private fun editDistance(a: String, b: String): Int {
+        var previous = IntArray(b.length + 1) { it }
+        for (i in a.indices) {
+            val current = IntArray(b.length + 1).also { it[0] = i + 1 }
+            for (j in b.indices) {
+                current[j + 1] = minOf(previous[j + 1] + 1, current[j] + 1, previous[j] + if (a[i] == b[j]) 0 else 1)
+            }
+            previous = current
+        }
+        return previous[b.length]
+    }
 
     private fun isIgnored(upper: String): Boolean =
         words(upper).any { it in IGNORED_WORDS } || IGNORED_PHRASES.any { it in upper } || DATE_OR_TIME.containsMatchIn(upper)
@@ -245,14 +332,24 @@ object ReceiptParser {
             "([-−]?)\\s*(?:(?i:kr)\\.?|DKK)?\\s*(?:[AB*]{1,2})?\\s*$",
     )
     private val DIGIT_LOOKALIKES = mapOf('O' to '0', 'o' to '0', 'l' to '1', 'I' to '1', 'S' to '5')
+    /** "2 x 7,00 [14,00]"; the recognizer often reads the "x" as "%", "K", "×" or "*". */
     private val QUANTITY =
-        Regex("^(\\d+)\\s*(?:X|STK\\.?\\s*(?:X|Á|À|A)?|Á|À|@)\\s*(\\d+ ?[,.] ?\\d{2})(?:\\s+(\\d+ ?[,.] ?\\d{2}))?\\s*[AB*]{0,2}\\s*$")
+        Regex("^(\\d+)\\s*(?:STK\\.?\\s*(?:X|Á|À|A)?|[X×%*KÁÀ@])\\s*(\\d+ ?[,.] ?\\d{2})(?:\\s+(\\d+ ?[,.] ?\\d{2}))?\\s*[AB*]{0,2}\\s*$")
     /** "TOTAL", "Total DKK", "SUM", "I alt", "Køb i alt", "At betale", "Til betaling" (not "Subtotal"). */
     private val TOTAL = Regex("^(?:TOTAL|TOTALT|SUM)\\b|\\b(?:I ALT|AT BETALE|TIL BETALING)\\b")
 
     /** Card and MobilePay lines print the amount paid, which is the total. Cash lines don't (change). */
-    private val PAYMENT_WORDS = setOf("DANKORT", "VISA", "MASTERCARD", "MAESTRO", "MOBILEPAY", "BELØB", "KORTBETALING")
-    private val DATE_OR_TIME = Regex("\\b\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}\\b")
+    private val PAYMENT_WORDS = setOf("DANKORT", "VISA", "MASTERCARD", "MAESTRO", "MOBILEPAY", "BELØB", "KORTBETALING", "BETALINGSKORT")
+
+    /** Total and payment words that are long enough to recognise with a misread letter. */
+    private val TOTAL_LIKE = listOf("TOTAL", "AT BETALE", "TIL BETALING")
+    private val PAYMENT_LIKE = listOf("DANKORT", "BETALINGSKORT", "MOBILEPAY", "MASTERCARD")
+    private val DATE_OR_TIME = Regex(
+        "\\b\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}\\b|" +
+            // "10. dec 2013", "3 NOVEMBER 2026"; whole month names and a year, so "1 JULEKAGE 450 G" is an item
+            "\\b\\d{1,2}\\.? ?(?:JAN(?:UAR)?|FEB(?:RUAR)?|MAR(?:TS)?|APR(?:IL)?|MAJ|MAY|JUNI?|JULI?|AUG(?:UST)?|" +
+            "SEP(?:T(?:EMBER)?)?|OKT(?:OBER)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)\\.? \\d{4}\\b",
+    )
     private val IGNORED_WORDS = setOf(
         "MOMS", "MOMSBELØB", "KONTANT", "BYTTEPENGE", "RETUR",
         "CVR", "TLF", "TELEFON", "KVITTERING", "BON", "KASSE", "EKSPEDIENT", "TERMINAL", "SUBTOTAL", "MELLEMSUM",
