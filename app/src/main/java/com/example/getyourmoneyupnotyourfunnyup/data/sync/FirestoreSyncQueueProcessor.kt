@@ -94,11 +94,13 @@ class FirestoreRemoteDocumentStore(
  */
 interface SyncQueueStore {
     fun nextPendingItem(): SyncQueueEntity?
+    fun nextPendingItem(accountId: String): SyncQueueEntity? = nextPendingItem()
     fun getUser(userId: String): UserEntity?
     fun getGroupWithMembers(groupId: String): Pair<GroupEntity, List<GroupMemberEntity>>?
     fun getDisplayNames(userIds: Collection<String>): Map<String, String>
     fun getExpenseWithSplits(expenseId: String): Pair<ExpenseEntity, List<ExpenseSplitEntity>>?
     fun getSettlement(settlementId: String): SettlementEntity?
+    fun getReminder(reminderId: String): com.example.getyourmoneyupnotyourfunnyup.model.Reminder? = null
     fun acknowledgeItem(item: SyncQueueEntity, expectedUpdatedAt: Long? = null)
     fun recordFailure(item: SyncQueueEntity, errorMessage: String?)
 }
@@ -109,6 +111,20 @@ class DatabaseSyncQueueStore(
 
     override fun nextPendingItem(): SyncQueueEntity? =
         database.syncQueueDao.getAllPending().firstOrNull()
+
+    override fun nextPendingItem(accountId: String): SyncQueueEntity? = pendingItemsForAccount(accountId).firstOrNull()
+
+    fun pendingItemsForAccount(accountId: String): List<SyncQueueEntity> = database.syncQueueDao.getAllPending().filter { item ->
+        val data = runCatching { SyncPayloadJson.decodeObject(item.payloadJson) }.getOrDefault(emptyMap())
+        val owner = data["queuedBy"] as? String ?: data["recordedBy"] as? String ?: when (item.entityType) {
+            SyncEntityType.USER -> item.entityId
+            SyncEntityType.GROUP -> database.groupDao.getGroupById(item.entityId)?.createdBy
+            SyncEntityType.EXPENSE -> database.expenseDao.getExpenseById(item.entityId)?.createdBy
+            SyncEntityType.SETTLEMENT -> database.settlementDao.getSettlementById(item.entityId)?.debtorId
+            SyncEntityType.REMINDER -> database.reminderDao.get(item.entityId)?.creditorId
+        }
+        owner == accountId
+    }
 
     override fun getUser(userId: String): UserEntity? =
         database.userDao.getUserById(userId)
@@ -132,6 +148,8 @@ class DatabaseSyncQueueStore(
 
     override fun getSettlement(settlementId: String): SettlementEntity? =
         database.settlementDao.getSettlementById(settlementId)
+
+    override fun getReminder(reminderId: String) = database.reminderDao.get(reminderId)
 
     override fun acknowledgeItem(item: SyncQueueEntity, expectedUpdatedAt: Long?) {
         val db = database.writableDatabase
@@ -187,6 +205,10 @@ class DatabaseSyncQueueStore(
                             arrayOf(item.entityId)
                         )
                         changedTable = ExpensesTable.TABLE_NAME
+                    }
+                    SyncEntityType.REMINDER -> {
+                        db.update("reminders", ContentValues().apply { put("sync_status", syncedValue) }, "id = ?", arrayOf(item.entityId))
+                        changedTable = "reminders"
                     }
                     SyncEntityType.SETTLEMENT -> {
                         db.update(
@@ -254,6 +276,10 @@ class DatabaseSyncQueueStore(
                     )
                     ExpensesTable.TABLE_NAME
                 }
+                SyncEntityType.REMINDER -> {
+                    db.update("reminders", ContentValues().apply { put("sync_status", failedValue) }, "id = ?", arrayOf(item.entityId))
+                    "reminders"
+                }
                 SyncEntityType.SETTLEMENT -> {
                     db.update(
                         SettlementsTable.TABLE_NAME,
@@ -292,7 +318,7 @@ class FirestoreSyncQueueProcessor(
         if (accountId.isBlank() || currentAccountId() != accountId) {
             return SyncStep.NeedsAttention
         }
-        val item = store.nextPendingItem() ?: return SyncStep.Empty
+        val item = store.nextPendingItem(accountId) ?: return SyncStep.Empty
 
         return try {
             when (item.entityType) {
@@ -300,6 +326,7 @@ class FirestoreSyncQueueProcessor(
                 SyncEntityType.GROUP -> syncGroup(accountId, item)
                 SyncEntityType.EXPENSE -> syncExpense(accountId, item)
                 SyncEntityType.SETTLEMENT -> syncSettlement(accountId, item)
+                SyncEntityType.REMINDER -> syncReminder(accountId, item)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -390,6 +417,19 @@ class FirestoreSyncQueueProcessor(
             data = documentMap,
             merge = true
         )
+        if (currentAccountId() != accountId) return SyncStep.NeedsAttention
+        store.acknowledgeItem(item)
+        return SyncStep.Acknowledged(accountId)
+    }
+
+    private suspend fun syncReminder(accountId: String, item: SyncQueueEntity): SyncStep {
+        val reminder = store.getReminder(item.entityId) ?: com.example.getyourmoneyupnotyourfunnyup.data.remote.ReminderMapper.fromMap(
+            SyncPayloadJson.decodeObject(item.payloadJson), item.entityId)
+        if (reminder.creditorId != accountId || currentAccountId() != accountId) return SyncStep.NeedsAttention
+        val members = store.getGroupWithMembers(reminder.groupId)?.second.orEmpty()
+        if (members.none { it.userId == accountId } || members.none { it.userId == reminder.debtorId }) return SyncStep.NeedsAttention
+        remoteStore.setDocument("$GROUPS_COLLECTION/${reminder.groupId}/reminders", reminder.id,
+            com.example.getyourmoneyupnotyourfunnyup.data.remote.ReminderMapper.toMap(reminder), merge = true)
         if (currentAccountId() != accountId) return SyncStep.NeedsAttention
         store.acknowledgeItem(item)
         return SyncStep.Acknowledged(accountId)

@@ -28,6 +28,7 @@ sealed interface ProfileAction {
     data object Cancel : ProfileAction
     data object Save : ProfileAction
     data class Name(val value: String) : ProfileAction
+    data class Email(val value: String) : ProfileAction
     data class Phone(val value: String) : ProfileAction
     data class Toggle(val preference: ProfilePreference, val enabled: Boolean) : ProfileAction
 }
@@ -42,6 +43,7 @@ fun ProfileRoute(viewModel: ProfileViewModel, onLogout: () -> Unit, modifier: Mo
             ProfileAction.Cancel -> viewModel.cancel()
             ProfileAction.Save -> viewModel.saveDetails()
             is ProfileAction.Name -> viewModel.setName(action.value)
+            is ProfileAction.Email -> viewModel.setEmail(action.value)
             is ProfileAction.Phone -> viewModel.setPhone(action.value)
             is ProfileAction.Toggle -> viewModel.toggle(action.preference, action.enabled)
         }
@@ -93,8 +95,9 @@ fun ProfileScreen(
             }
             item("email") {
                 OutlinedTextField(
-                    value = user.email, onValueChange = {}, readOnly = true,
-                    label = { Text("Email", color = AppColors.Ink600) }, supportingText = { Text("Email changes are not available yet.", color = AppColors.Ink600) },
+                    value = draft.email, onValueChange = { onAction(ProfileAction.Email(it)) }, enabled = enabled,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    label = { Text("Email", color = AppColors.Ink600) }, supportingText = { Text("Changing email sends a verification link. Your sign-in email stays unchanged until you verify.", color = AppColors.Ink600) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = AppTouchTargets.TextFieldHeight),
                     shape = AppShapes.TextField, singleLine = true,
                     textStyle = AppTypography.Body.copy(color = AppColors.Ink900)
@@ -156,6 +159,7 @@ fun ProfileScreen(
                 )
             }
             if (state.saved) Text("Saved", style = AppTypography.Caption, color = AppColors.Green700)
+            state.infoMessage?.let { Text(it, style = AppTypography.Caption, color = AppColors.Green700) }
             if (!state.canSave) Text("Profile editing is unavailable.", style = AppTypography.Caption, color = AppColors.Ink600)
             state.errorMessage?.let {
                 Surface(shape = AppShapes.Chip, color = AppColors.Amber100) {
@@ -225,6 +229,6 @@ private fun ProfilePreview() {
 @Composable
 private fun EditProfilePreview() {
     GetYourMoneyUpNotYourFunnyUpTheme {
-        ProfileScreen(ProfileUiState.Success(User("preview", "ramin@example.com", "Ramin"), draft = ProfileDraft("Ramin", "+45 12 34 56 78")), {}, {})
+        ProfileScreen(ProfileUiState.Success(User("preview", "ramin@example.com", "Ramin"), draft = ProfileDraft("Ramin", "+45 12 34 56 78", "ramin@example.com")), {}, {})
     }
 }

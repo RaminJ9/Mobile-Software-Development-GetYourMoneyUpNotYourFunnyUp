@@ -44,7 +44,7 @@ fun BalanceRoute(viewModel: BalanceViewModel, onBack: () -> Unit, modifier: Modi
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connection = rememberConnectionState()
     BalanceScreen(state, onBack, viewModel::retry, modifier, connection,
-        viewModel::askPayment, viewModel::cancelPayment, viewModel::confirmPayment, viewModel::askMarkAsPaid, showHeader)
+        viewModel::askPayment, viewModel::cancelPayment, viewModel::confirmPayment, viewModel::askMarkAsPaid, showHeader, viewModel::remind)
 }
 
 @Composable
@@ -58,7 +58,8 @@ fun BalanceScreen(
     onCancelPayment: (String) -> Unit = {},
     onConfirmPayment: (String) -> Unit = {},
     onMarkAsPaid: (String) -> Unit = {},
-    showHeader: Boolean = true
+    showHeader: Boolean = true,
+    onRemind: (String) -> Unit = {}
 ) {
     Column(modifier.fillMaxSize().background(AppColors.White)) {
         if (showHeader) Row(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.Space8), verticalAlignment = Alignment.CenterVertically) {
@@ -85,7 +86,7 @@ fun BalanceScreen(
                 "Balances currently support DKK. This group uses ${state.currency}.",
                 Modifier.padding(AppSpacing.Space16), style = AppTypography.Body, color = AppColors.Ink600
             )
-            is BalanceUiState.Success -> BalanceContent(state, connection, onPay, onCancelPayment, onConfirmPayment, onMarkAsPaid, showHeader)
+            is BalanceUiState.Success -> BalanceContent(state, connection, onPay, onCancelPayment, onConfirmPayment, onMarkAsPaid, showHeader, onRemind)
         }
     }
 }
@@ -94,7 +95,7 @@ fun BalanceScreen(
 private fun BalanceContent(
     state: BalanceUiState.Success, connection: ConnectionState,
     onPay: (String) -> Unit, onCancelPayment: (String) -> Unit, onConfirmPayment: (String) -> Unit,
-    onMarkAsPaid: (String) -> Unit, showHeader: Boolean
+    onMarkAsPaid: (String) -> Unit, showHeader: Boolean, onRemind: (String) -> Unit
 ) {
     val cards = remember(state.payments, state.suggestions, state.members) {
         state.payments.ifEmpty { state.suggestions.map { transfer ->
@@ -155,7 +156,10 @@ private fun BalanceContent(
                 creditorIsYou = state.members.any { it.isYou && it.userId == card.transfer.creditorId },
                 isSaving = state.isSaving,
                 onPay = { onPay(card.id) }, onCancel = { onCancelPayment(card.id) },
-                onConfirm = { onConfirmPayment(card.id) }, onMarkAsPaid = { onMarkAsPaid(card.id) }
+                onConfirm = { onConfirmPayment(card.id) }, onMarkAsPaid = { onMarkAsPaid(card.id) },
+                reminderAvailable = state.remindersAvailable,
+                reminderState = state.reminderStates[card.id] ?: InlineActionState.Idle,
+                onRemind = { onRemind(card.id) }
             )
         }
     }
@@ -164,7 +168,8 @@ private fun BalanceContent(
 @Composable
 private fun SettlementCard(
     card: BalancePayment, canPay: Boolean, canMarkAsPaid: Boolean, creditorIsYou: Boolean, isSaving: Boolean,
-    onPay: () -> Unit, onCancel: () -> Unit, onConfirm: () -> Unit, onMarkAsPaid: () -> Unit
+    onPay: () -> Unit, onCancel: () -> Unit, onConfirm: () -> Unit, onMarkAsPaid: () -> Unit,
+    reminderAvailable: Boolean, reminderState: InlineActionState, onRemind: () -> Unit
 ) {
     val paid = card.action is InlineActionState.Done
     Surface(
@@ -205,6 +210,21 @@ private fun SettlementCard(
                         modifier = Modifier.heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton,
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red700, contentColor = AppColors.White)) {
                         Text("Pay ${formatDanishAmountFromCents(card.transfer.amountCents)}")
+                    }
+                    if (canMarkAsPaid && reminderAvailable) {
+                        when (reminderState) {
+                            InlineActionState.Working -> Text("Saving reminder...", style = AppTypography.Caption, color = AppColors.Ink600)
+                            is InlineActionState.Done -> Text(when (reminderState.syncStatus) {
+                                com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus.SYNCED -> "Reminder sent"
+                                com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus.FAILED -> "Reminder saved \u00b7 couldn't sync yet"
+                                else -> "Reminder saved \u00b7 waiting to sync"
+                            }, style = AppTypography.Caption, color = AppColors.Green700)
+                            else -> {
+                                if (reminderState is InlineActionState.Failed) Text(reminderState.message, style = AppTypography.Caption, color = AppColors.Ink600)
+                                OutlinedButton(onClick = onRemind, enabled = !isSaving,
+                                    modifier = Modifier.heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton) { Text("Remind", color = AppColors.Green700) }
+                            }
+                        }
                     }
                     if (canMarkAsPaid) OutlinedButton(onClick = onMarkAsPaid, enabled = !isSaving,
                         modifier = Modifier.heightIn(min = AppTouchTargets.MinTouchTarget), shape = AppShapes.InlineButton) {

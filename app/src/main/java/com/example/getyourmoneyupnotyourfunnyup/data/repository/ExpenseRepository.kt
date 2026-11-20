@@ -65,7 +65,7 @@ class ExpenseRepository(
         )
         val entity = ExpenseEntity.fromDomain(toSave)
         val splitEntities = normalizedSplits.map(ExpenseSplitEntity::fromDomain)
-        val payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(entity, splitEntities))
+        val payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(entity, splitEntities) + ("queuedBy" to expense.createdBy))
 
         val db = database.writableDatabase
         db.beginTransaction()
@@ -130,7 +130,7 @@ class ExpenseRepository(
             isDeleted = true,
             syncStatus = SyncStatus.PENDING_DELETE
         )
-        val payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(deletedEntity, splits))
+        val payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(deletedEntity, splits) + ("queuedBy" to actorUserId))
 
         val db = database.writableDatabase
         db.beginTransaction()

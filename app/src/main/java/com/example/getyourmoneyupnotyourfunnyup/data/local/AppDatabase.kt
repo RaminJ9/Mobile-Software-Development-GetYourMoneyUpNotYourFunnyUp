@@ -9,9 +9,10 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.dao.SettlementDao
 import com.example.getyourmoneyupnotyourfunnyup.data.local.dao.SyncQueueDao
 import com.example.getyourmoneyupnotyourfunnyup.data.local.dao.UserDao
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
 
 /**
  * Local SQLite Database Manager for "Get Your Money Up Not Your Funny Up".
@@ -32,12 +33,13 @@ class AppDatabase internal constructor(
     DatabaseContract.DATABASE_VERSION
 ) {
 
-    private val tableInvalidationFlow = MutableSharedFlow<Set<String>>(extraBufferCapacity = 64)
+    private val tableRevisions = MutableStateFlow<Map<String, Long>>(emptyMap())
 
     val userDao: UserDao by lazy { UserDao(this) }
     val groupDao: GroupDao by lazy { GroupDao(this) }
     val expenseDao: ExpenseDao by lazy { ExpenseDao(this) }
     val settlementDao: SettlementDao by lazy { SettlementDao(this) }
+    val reminderDao by lazy { com.example.getyourmoneyupnotyourfunnyup.data.local.dao.ReminderDao(this) }
     val syncQueueDao: SyncQueueDao by lazy { SyncQueueDao(this) }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -104,16 +106,15 @@ class AppDatabase internal constructor(
      */
     fun observeTables(vararg tableNames: String): Flow<Set<String>> {
         val watchedSet = tableNames.toSet()
-        return tableInvalidationFlow
-            .filter { changed -> changed.any { it in watchedSet } }
-            .onStart { emit(watchedSet) }
+        return tableRevisions.map { revisions -> watchedSet.associateWith { revisions[it] ?: 0L } }
+            .distinctUntilChanged().map { watchedSet }
     }
 
     /**
      * Notifies active observers that one or more tables have been modified.
      */
     fun notifyTableChanged(vararg tableNames: String) {
-        tableInvalidationFlow.tryEmit(tableNames.toSet())
+        tableRevisions.update { previous -> previous + tableNames.associateWith { (previous[it] ?: 0L) + 1L } }
     }
 
     companion object {

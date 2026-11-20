@@ -1,306 +1,156 @@
 package com.example.getyourmoneyupnotyourfunnyup.data.repository
 
+import android.content.ContentValues
+import androidx.core.database.sqlite.transaction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.ExpenseSplitsTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.ExpensesTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.GroupMembersTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.GroupsTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.SettlementsTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.SyncQueueTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.UsersTable
-import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SettlementEntity
-import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncAction
-import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncEntityType
-import com.example.getyourmoneyupnotyourfunnyup.data.local.entity.SyncQueueEntity
-import com.example.getyourmoneyupnotyourfunnyup.data.remote.ExpenseDocumentMapper
-import com.example.getyourmoneyupnotyourfunnyup.data.remote.SettlementDocumentMapper
-import com.example.getyourmoneyupnotyourfunnyup.data.remote.SyncPayloadJson
-import com.example.getyourmoneyupnotyourfunnyup.data.sync.SyncQueueProcessor
-import com.example.getyourmoneyupnotyourfunnyup.model.DebtTransfer
-import com.example.getyourmoneyupnotyourfunnyup.model.MemberBalance
-import com.example.getyourmoneyupnotyourfunnyup.model.SettlementStatus
-import com.example.getyourmoneyupnotyourfunnyup.model.SyncStatus
-import com.example.getyourmoneyupnotyourfunnyup.model.User
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.ActivityData
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.ActivityEvent
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.ActivityType
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.AmountDirection
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.DashboardGroup
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.FinancialSummary
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.HomeData
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.OutstandingPayment
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.PaidOutPayment
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.SettlementActions
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.SyncPresentation
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.SyncRetryActions
-import java.util.UUID
+import com.example.getyourmoneyupnotyourfunnyup.model.*
+import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.math.BigInteger
 
-/**
- * Reactive local SQLite data source that maps [AppDatabase] tables into [HomeData] and [ActivityData]
- * for the authenticated navigation shell.
- */
-class DashboardDataSource(
-    private val database: AppDatabase,
-    private val syncProcessor: SyncQueueProcessor? = null,
-    private val currentAccountId: () -> String? = { null }
-) {
-    private val watchedTables = arrayOf(
-        UsersTable.TABLE_NAME,
-        GroupsTable.TABLE_NAME,
-        GroupMembersTable.TABLE_NAME,
-        ExpensesTable.TABLE_NAME,
-        ExpenseSplitsTable.TABLE_NAME,
-        SettlementsTable.TABLE_NAME,
-        SyncQueueTable.TABLE_NAME
-    )
+/** Account-scoped, read-only financial snapshots; Home and Activity use the group ledger algorithms. */
+class DashboardDataSource(private val database: AppDatabase, private val scheduleRetry: suspend (String) -> Unit = {}, private val currentAccountId: () -> String?) {
+    private val watched = arrayOf("users", "groups", "group_members", "expenses", "expense_splits", "settlements", "sync_queue", "reminders", "activity_reads")
+    fun observeHomeData(user: User): Flow<HomeData> = database.observeTables(*watched).map { withContext(Dispatchers.IO) { snapshot(user).first } }
+    fun observeActivityData(user: User): Flow<ActivityData> = database.observeTables(*watched).map { withContext(Dispatchers.IO) { snapshot(user).second } }
+    private fun checkAccount(id: String) { if (id.isBlank() || currentAccountId() != id) throw SecurityException("Your session changed. Sign in again.") }
 
-    fun observeHomeData(initialUser: User): Flow<HomeData> =
-        database.observeTables(*watchedTables).map {
-            withContext(Dispatchers.IO) {
-                loadHomeData(initialUser)
-            }
+    val settlementActions = SettlementActions { payment ->
+        val account = currentAccountId() ?: throw SecurityException("Sign in again.")
+        val sourceUser = withContext(Dispatchers.IO) { database.userDao.getUserById(account)?.toDomain() }
+            ?: throw SecurityException("Profile is unavailable.")
+        val current = withContext(Dispatchers.IO) { snapshot(sourceUser).first }
+        val alreadyRecorded = withContext(Dispatchers.IO) { database.settlementDao.getSettlementById(payment.id) != null }
+        require(alreadyRecorded || current.finances?.outstandingPayments?.any { it.id == payment.id && it.transfer == payment.transfer && it.groupId == payment.groupId } == true) {
+            "This balance changed. Review the current payment."
         }
-
-    fun observeActivityData(initialUser: User): Flow<ActivityData> =
-        database.observeTables(*watchedTables).map {
-            withContext(Dispatchers.IO) {
-                loadActivityData(initialUser)
-            }
-        }
-
-    val settlementActions: SettlementActions = SettlementActions { payment ->
-        withContext(Dispatchers.IO) {
-            val now = System.currentTimeMillis()
-            val settlementId = "stl-${UUID.randomUUID()}"
-            val entity = SettlementEntity(
-                id = settlementId,
-                groupId = payment.groupId,
-                debtorId = payment.transfer.debtorId,
-                creditorId = payment.transfer.creditorId,
-                amountCents = payment.transfer.amountCents,
-                currency = payment.transfer.currency,
-                paymentMethod = "MobilePay",
-                status = SettlementStatus.COMPLETED,
-                createdAt = now,
-                syncStatus = SyncStatus.PENDING_INSERT
-            )
-            database.settlementDao.upsertSettlement(entity)
-            database.syncQueueDao.enqueue(
-                SyncQueueEntity(
-                    entityType = SyncEntityType.SETTLEMENT,
-                    entityId = settlementId,
-                    action = SyncAction.CREATE,
-                    payloadJson = SyncPayloadJson.encode(
-                        SettlementDocumentMapper.toMap(entity, recordedBy = payment.transfer.debtorId)
-                    )
-                )
-            )
-            val accountId = currentAccountId() ?: payment.transfer.debtorId
-            syncProcessor?.processNext(accountId)
-            database.settlementDao.getSettlementById(settlementId)?.syncStatus ?: SyncStatus.PENDING_INSERT
-        }
+        LocalPaymentRepository(database = database, currentAccountId = currentAccountId)
+            .pay(account, payment.groupId, payment.transfer, payment.id).syncStatus
     }
 
-    val syncRetryActions: SyncRetryActions = SyncRetryActions { event ->
-        withContext(Dispatchers.IO) {
+    suspend fun markRead(accountId: String, ids: Set<String>) = withContext(Dispatchers.IO) {
+        checkAccount(accountId)
+        database.writableDatabase.transaction {
+            checkAccount(accountId)
+            ids.forEach { id ->
+                insertWithOnConflict("activity_reads", null, ContentValues().apply {
+                    put("user_id", accountId); put("event_id", id); put("read_at", System.currentTimeMillis())
+                }, android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE)
+            }
+            checkAccount(accountId)
+        }
+        database.notifyTableChanged("activity_reads")
+    }
+
+    val syncRetryActions = SyncRetryActions { event -> withContext(Dispatchers.IO) {
+        val account = currentAccountId() ?: throw SecurityException("Sign in again.")
+        checkAccount(account)
+        val status = database.writableDatabase.transaction {
+            if (database.groupDao.getMembersForGroup(event.group.group.id).none { it.userId == account }) throw SecurityException("No group access.")
+            val reminder = database.reminderDao.get(event.id)
             val expense = database.expenseDao.getExpenseById(event.id)
-            if (expense != null) {
-                database.expenseDao.updateSyncStatus(event.id, SyncStatus.PENDING_UPDATE)
-                val alreadyQueued = database.syncQueueDao.getAllPending().any {
-                    it.entityType == SyncEntityType.EXPENSE && it.entityId == event.id
-                }
-                if (!alreadyQueued) {
-                    val splits = database.expenseDao.getSplitsForExpense(event.id)
-                    database.syncQueueDao.enqueue(
-                        SyncQueueEntity(
-                            entityType = SyncEntityType.EXPENSE,
-                            entityId = event.id,
-                            action = SyncAction.UPDATE,
-                            payloadJson = SyncPayloadJson.encode(ExpenseDocumentMapper.toMap(expense, splits))
-                        )
-                    )
-                }
-            }
-            val accountId = currentAccountId() ?: expense?.createdBy.orEmpty()
-            if (accountId.isNotBlank()) {
-                syncProcessor?.processNext(accountId)
-            }
-            database.expenseDao.getExpenseById(event.id)?.syncStatus ?: SyncStatus.PENDING_UPDATE
+            val type = if (reminder != null) "REMINDER" else "EXPENSE"
+            val queued = database.syncQueueDao.getAllPending().firstOrNull { it.entityType.name == type && it.entityId == event.id }
+                ?: throw IllegalArgumentException("This item has no pending operation.")
+            if (reminder != null) {
+                if (reminder.creditorId != account) throw SecurityException("Only your own reminder can be retried.")
+            } else if (expense == null || (expense.createdBy != account && expense.payerId != account)) throw SecurityException("Only your own expense can be retried.")
+            val next = when (queued.action.name) { "CREATE" -> SyncStatus.PENDING_INSERT; "DELETE" -> SyncStatus.PENDING_DELETE; else -> SyncStatus.PENDING_UPDATE }
+            update(if (reminder != null) "reminders" else "expenses", ContentValues().apply { put("sync_status", next.name) }, "id = ?", arrayOf(event.id))
+            checkAccount(account)
+            next
         }
-    }
+        database.notifyTableChanged("expenses", "reminders", "sync_queue")
+        scheduleRetry(account)
+        status
+    } }
 
-    private fun loadHomeData(initialUser: User): HomeData {
-        val now = System.currentTimeMillis()
-        val user = database.userDao.getUserById(initialUser.id)?.toDomain() ?: initialUser
-        val allUsersById = database.userDao.getAllUsers().associate { it.id to it.toDomain() }
-        val groupEntities = database.groupDao.getGroupsForUser(user.id)
-
-        val balancesByGroup = mutableMapOf<String, MemberBalance>()
-        val outstandingPayments = mutableListOf<OutstandingPayment>()
-        val paidOutPayments = mutableListOf<PaidOutPayment>()
-
-        val dashboardGroups = groupEntities.mapIndexed { index, groupEntity ->
-            val memberEntities = database.groupDao.getMembersForGroup(groupEntity.id)
-            val domainMembers = memberEntities.map { member ->
-                val memberName = allUsersById[member.userId]?.displayName.orEmpty()
-                member.toDomain(memberName)
-            }
-            val domainGroup = groupEntity.toDomain(domainMembers)
-
-            val expenses = database.expenseDao.getActiveExpensesForGroup(groupEntity.id)
-            val splits = database.expenseDao.getSplitsForGroup(groupEntity.id)
-            val settlements = database.settlementDao.getSettlementsForGroup(groupEntity.id)
-
-            val paidByUser = expenses.filter { it.payerId == user.id }.sumOf { it.amountCents }
-            val owedByUser = splits.filter { it.userId == user.id }.sumOf { it.amountOwedCents }
-            val settledOut = settlements.filter {
-                it.debtorId == user.id && it.status == SettlementStatus.COMPLETED
-            }.sumOf { it.amountCents }
-            val settledIn = settlements.filter {
-                it.creditorId == user.id && it.status == SettlementStatus.COMPLETED
-            }.sumOf { it.amountCents }
-
-            val netBalance = paidByUser - owedByUser + settledOut - settledIn
-            balancesByGroup[groupEntity.id] = MemberBalance(
-                userId = user.id,
-                netBalanceCents = netBalance,
-                currency = "DKK"
-            )
-
-            if (netBalance < 0L) {
-                val creditorId = domainMembers.firstOrNull { it.userId != user.id }?.userId ?: groupEntity.createdBy
-                val creditorName = allUsersById[creditorId]?.displayName?.ifBlank { "Member" } ?: "Member"
-                outstandingPayments.add(
-                    OutstandingPayment(
-                        id = "pay-${groupEntity.id}",
-                        groupId = groupEntity.id,
-                        creditorName = creditorName,
-                        since = expenses.minOfOrNull { it.createdAt } ?: groupEntity.updatedAt,
-                        transfer = DebtTransfer(
-                            debtorId = user.id,
-                            creditorId = creditorId,
-                            amountCents = -netBalance,
-                            currency = "DKK"
-                        )
-                    )
-                )
-            }
-
-            settlements.filter { it.debtorId == user.id && it.status == SettlementStatus.COMPLETED }.forEach { s ->
-                val creditorName = allUsersById[s.creditorId]?.displayName?.ifBlank { "Member" } ?: "Member"
-                paidOutPayments.add(
-                    PaidOutPayment(
-                        settlement = s.toDomain().copy(currency = "DKK"),
-                        creditorName = creditorName
-                    )
-                )
-            }
-
-            val pendingCount = expenses.count { it.syncStatus != SyncStatus.SYNCED }
-            val latestActivity = listOfNotNull(
-                groupEntity.updatedAt,
-                expenses.maxOfOrNull { it.createdAt },
-                settlements.maxOfOrNull { it.createdAt }
-            ).maxOrNull() ?: groupEntity.updatedAt
-
-            DashboardGroup(
-                group = domainGroup.copy(currency = "DKK"),
-                colourIndex = index,
-                isFavourite = index < 2,
-                lastActivityAt = latestActivity,
-                pendingExpenseCount = pendingCount
-            )
-        }
-
-        val pendingQueueCount = database.syncQueueDao.getAllPending().size
-        return HomeData(
-            user = user,
-            groups = dashboardGroups,
-            finances = FinancialSummary(
-                balancesByGroup = balancesByGroup,
-                outstandingPayments = outstandingPayments
-            ),
-            paidOutPayments = paidOutPayments,
-            hasUnreadActivity = outstandingPayments.isNotEmpty(),
-            nowMillis = now,
-            sync = SyncPresentation(pendingCount = pendingQueueCount)
-        )
-    }
-
-    private fun loadActivityData(initialUser: User): ActivityData {
-        val home = loadHomeData(initialUser)
-        val allUsersById = database.userDao.getAllUsers().associate { it.id to it.toDomain() }
-        val events = mutableListOf<ActivityEvent>()
-
-        home.groups.forEach { dashGroup ->
-            val expenses = database.expenseDao.getActiveExpensesForGroup(dashGroup.group.id)
-            expenses.forEach { expense ->
-                val payer = allUsersById[expense.payerId]
-                val splits = database.expenseDao.getSplitsForExpense(expense.id)
-                val userShare = splits.firstOrNull { it.userId == home.user.id }?.amountOwedCents ?: expense.amountCents
-                if (expense.syncStatus == SyncStatus.FAILED) {
-                    events.add(
-                        ActivityEvent(
-                            id = expense.id,
-                            type = ActivityType.SyncFailure,
-                            actor = null,
-                            actorColourIndex = dashGroup.colourIndex,
-                            description = "couldn't sync yet – retrying automatically",
-                            group = dashGroup,
-                            occurredAt = expense.createdAt,
-                            unread = true,
-                            syncStatus = SyncStatus.FAILED,
-                            expenseTitle = expense.title
-                        )
-                    )
-                } else {
-                    events.add(
-                        ActivityEvent(
-                            id = "exp-${expense.id}",
-                            type = ActivityType.ExpenseAdded,
-                            actor = payer,
-                            actorColourIndex = dashGroup.colourIndex,
-                            description = "added ${expense.title} · your share",
-                            group = dashGroup,
-                            occurredAt = expense.createdAt,
-                            amountCents = userShare,
-                            currency = "DKK",
-                            direction = if (expense.payerId == home.user.id) AmountDirection.Received else AmountDirection.Owed
-                        )
-                    )
+    private fun snapshot(initial: User): Pair<HomeData, ActivityData> {
+        checkAccount(initial.id)
+        val result = database.readableDatabase.transaction(exclusive = false) {
+            val user = database.userDao.getUserById(initial.id)?.toDomain() ?: initial
+            val users = database.userDao.getAllUsers().associate { it.id to it.toDomain() }
+            fun name(id: String) = users[id]?.displayName?.takeIf { it.isNotBlank() } ?: "Member"
+            val readIds = mutableSetOf<String>()
+            rawQuery("SELECT event_id FROM activity_reads WHERE user_id = ?", arrayOf(user.id)).use { c -> while (c.moveToNext()) readIds += c.getString(0) }
+            val balances = mutableMapOf<String, MemberBalance>()
+            val payments = mutableListOf<OutstandingPayment>()
+            val history = mutableListOf<PaidOutPayment>()
+            val events = mutableListOf<ActivityEvent>()
+            val receiptStatuses = mutableMapOf<String, SyncStatus>()
+            var valid = true
+            val groups = database.groupDao.getGroupsForUser(user.id).map { entity ->
+                val members = database.groupDao.getMembersForGroup(entity.id).map { it.toDomain(name(it.userId)) }
+                val splitRows = database.expenseDao.getSplitsForGroup(entity.id).groupBy { it.expenseId }
+                val expenses = database.expenseDao.getActiveExpensesForGroup(entity.id).map { it.toDomain(splitRows[it.id].orEmpty().map { share -> share.toDomain() }) }
+                val settlements = database.settlementDao.getSettlementsForGroup(entity.id).map { it.toDomain() }
+                val group = DashboardGroup(entity.toDomain(members), entity.colourIndex, entity.isFavourite,
+                    (listOf(entity.updatedAt) + expenses.map { it.createdAt } + settlements.map { it.createdAt }).maxOrNull() ?: entity.updatedAt,
+                    expenses.count { it.syncStatus != SyncStatus.SYNCED })
+                if (entity.currency == "DKK") {
+                    try {
+                        val net = BalanceCalculator.calculate(entity.id, entity.currency, members.map { it.userId }, expenses, settlements)
+                        val own = net.firstOrNull { it.userId == user.id } ?: MemberBalance(user.id, 0, "DKK")
+                        if (own.netBalanceCents == Long.MIN_VALUE) valid = false
+                        balances[entity.id] = own
+                        SettlementCalculator.suggest(net).filter { it.debtorId == user.id }.forEach { transfer ->
+                            payments += OutstandingPayment(SettlementReference.id(entity.id, transfer, expenses, settlements), entity.id,
+                                name(transfer.creditorId), expenses.minOfOrNull { it.createdAt } ?: entity.updatedAt, transfer)
+                        }
+                    } catch (_: IllegalArgumentException) { valid = false
+                    } catch (_: ArithmeticException) { valid = false }
+                } else valid = false
+                expenses.forEach { expense ->
+                    val share = expense.splits.firstOrNull { it.userId == user.id }?.amountOwedCents
+                    val failed = expense.syncStatus == SyncStatus.FAILED
+                    val id = if (failed) expense.id else "expense-${expense.id}"
+                    events += ActivityEvent(id, if (failed) ActivityType.SyncFailure else ActivityType.ExpenseAdded,
+                        users[expense.payerId], group.colourIndex,
+                        if (failed) "couldn't sync this expense" else "added ${expense.title}", group, expense.createdAt,
+                        amountCents = if (expense.currency == "DKK") share else null,
+                        direction = if (share != null && expense.payerId != user.id) AmountDirection.Owed else AmountDirection.Neutral,
+                        unread = share != null && user.notificationSettings.expenseAlerts && expense.createdBy != user.id && id !in readIds, syncStatus = expense.syncStatus, expenseTitle = expense.title)
                 }
+                settlements.filter { it.status == SettlementStatus.COMPLETED && it.currency == "DKK" }.forEach { payment ->
+                    receiptStatuses[payment.id] = payment.syncStatus
+                    if (payment.debtorId == user.id) history += PaidOutPayment(payment, name(payment.creditorId))
+                    val id = "payment-${payment.id}"
+                    events += ActivityEvent(id, ActivityType.Payment, users[payment.debtorId], group.colourIndex,
+                        "paid ${if (payment.creditorId == user.id) "you" else name(payment.creditorId)}", group, payment.createdAt,
+                        amountCents = payment.amountCents, direction = when (user.id) {
+                            payment.debtorId -> AmountDirection.Settled; payment.creditorId -> AmountDirection.Received; else -> AmountDirection.Neutral
+                        }, unread = payment.creditorId == user.id && id !in readIds, syncStatus = payment.syncStatus)
+                }
+                database.reminderDao.forGroup(entity.id).filter { it.creditorId == user.id || it.debtorId == user.id }.forEach { r ->
+                    val incoming = r.debtorId == user.id
+                    if (!incoming || user.notificationSettings.paymentReminders) {
+                        val payment = OutstandingPayment(r.obligationId, r.groupId, name(r.creditorId), r.createdAt,
+                            DebtTransfer(r.debtorId, r.creditorId, r.amountCents, r.currency))
+                        val failed = !incoming && r.syncStatus == SyncStatus.FAILED
+                        events += ActivityEvent(r.id, if (failed) ActivityType.SyncFailure else ActivityType.Reminder,
+                            users[r.creditorId], group.colourIndex,
+                            if (incoming) "reminded you to pay" else if (failed) "couldn't sync this reminder" else "reminded ${name(r.debtorId)} to pay",
+                            group, r.createdAt, r.amountCents, direction = if (receiptStatuses.containsKey(r.obligationId)) AmountDirection.Settled
+                                else if (incoming && payments.any { it.id == r.obligationId }) AmountDirection.Owed else AmountDirection.Neutral,
+                            unread = incoming && r.id !in readIds, payment = if (incoming) payment else null, syncStatus = r.syncStatus,
+                            paymentAvailable = incoming && payments.any { it.id == r.obligationId })
+                    }
+                }
+                group
             }
-
-            val settlements = database.settlementDao.getSettlementsForGroup(dashGroup.group.id)
-            settlements.forEach { settlement ->
-                val debtor = allUsersById[settlement.debtorId]
-                val creditorName = allUsersById[settlement.creditorId]?.displayName ?: "Member"
-                events.add(
-                    ActivityEvent(
-                        id = "stl-${settlement.id}",
-                        type = ActivityType.Payment,
-                        actor = debtor,
-                        actorColourIndex = dashGroup.colourIndex,
-                        description = if (settlement.debtorId == home.user.id) "paid $creditorName" else "paid you",
-                        group = dashGroup,
-                        occurredAt = settlement.createdAt,
-                        amountCents = settlement.amountCents,
-                        currency = "DKK",
-                        direction = if (settlement.debtorId == home.user.id) AmountDirection.Settled else AmountDirection.Received
-                    )
-                )
-            }
+            val outgoingTotal = payments.fold(BigInteger.ZERO) { sum, p -> sum + BigInteger.valueOf(p.transfer.amountCents) }
+            val incomingTotal = balances.values.fold(BigInteger.ZERO) { sum, row -> sum + BigInteger.valueOf(row.netBalanceCents.coerceAtLeast(0)) }
+            if (outgoingTotal.bitLength() > 63 || incomingTotal.bitLength() > 63) valid = false
+            val sync = SyncPresentation(pendingCount = com.example.getyourmoneyupnotyourfunnyup.data.sync.DatabaseSyncQueueStore(database).pendingItemsForAccount(user.id).size)
+            val home = HomeData(user, groups, if (valid) FinancialSummary(balances, payments) else null,
+                paidOutPayments = history, hasUnreadActivity = events.any { it.unread }, sync = sync)
+            checkAccount(initial.id)
+            home to ActivityData(user.id, events.sortedByDescending { it.occurredAt }, sync = sync, paymentStatuses = receiptStatuses)
         }
-
-        return ActivityData(
-            userId = home.user.id,
-            events = events.sortedByDescending { it.occurredAt },
-            nowMillis = home.nowMillis,
-            sync = home.sync
-        )
+        checkAccount(initial.id)
+        return result
     }
 }

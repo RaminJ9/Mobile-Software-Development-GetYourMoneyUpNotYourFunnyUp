@@ -18,14 +18,17 @@ import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.ProfileRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalBalanceRepository
 import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalPaymentRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalExpenseRemoval
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.LocalReminderRepository
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.DashboardDataSource
+import com.example.getyourmoneyupnotyourfunnyup.data.repository.ReceiptRepository
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.BalanceViewModel
+import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ExpenseViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.example.getyourmoneyupnotyourfunnyup.model.User
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.AppTab
 import com.example.getyourmoneyupnotyourfunnyup.ui.components.BottomNavBar
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.ActivityData
-import com.example.getyourmoneyupnotyourfunnyup.ui.dashboard.HomeData
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.activity.ActivityRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.CreateGroupRoute
 import com.example.getyourmoneyupnotyourfunnyup.ui.screens.groups.GroupsRoute
@@ -38,13 +41,12 @@ import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupMembersViewMod
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.GroupsViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.HomeViewModel
 import com.example.getyourmoneyupnotyourfunnyup.ui.viewmodel.ProfileViewModel
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /**
  * Navigation container for the signed-in app: the bottom bar tabs plus the group screens pushed on
  * top of them (Create group, Group detail), which hide the bottom bar like the HiFi.
- * Missing teammate data (activity events, scanning) is kept explicitly unavailable.
+ * Financial snapshots and reminders adapt the shared ledger; scanning remains a teammate integration.
  *
  * [database] defaults to the app database; the debug sandbox passes an in-memory one.
  */
@@ -55,7 +57,8 @@ fun AppShell(
     modifier: Modifier = Modifier,
     profileRepository: ProfileRepository? = null,
     database: AppDatabase? = null,
-    currentAccountId: () -> String? = { Firebase.auth.currentUser?.uid }
+    currentAccountId: () -> String? = { Firebase.auth.currentUser?.uid },
+    cloudReadError: String? = null
 ) {
     val applicationContext = LocalContext.current.applicationContext
     val localDatabase = remember(database, applicationContext) { database ?: AppDatabase.getInstance(applicationContext) }
@@ -80,9 +83,13 @@ fun AppShell(
                 }
             }
         )
-        val activityFactory = remember(user.id) {
+        val dashboard = remember(user.id, localDatabase) { DashboardDataSource(localDatabase, scheduleRetry = { id ->
+            (applicationContext as? com.example.getyourmoneyupnotyourfunnyup.MoneyApplication)?.syncScheduler?.scheduleManual(id)
+        }) { accountProvider.value() } }
+        val activityFactory = remember(user.id, dashboard) {
             viewModelFactory {
-                initializer { ActivityViewModel(flowOf(ActivityData(userId = user.id, events = null))) }
+                initializer { ActivityViewModel(dashboard.observeActivityData(user), dashboard.settlementActions, dashboard.syncRetryActions,
+                    saveRead = { dashboard.markRead(user.id, it) }) }
             }
         }
         val activityViewModel: ActivityViewModel = viewModel(viewModelStoreOwner = owner, factory = activityFactory)
@@ -151,9 +158,21 @@ fun AppShell(
                                         user.id, groupId,
                                         LocalBalanceRepository(localDatabase) { accountProvider.value() },
                                         paymentRepository = LocalPaymentRepository(
-                                            database = localDatabase, currentAccountId = { accountProvider.value() })
+                                            database = localDatabase, currentAccountId = { accountProvider.value() }),
+                                        reminderRepository = LocalReminderRepository(localDatabase) { accountProvider.value() }
                                     )
                                 }
+                            }
+                        }
+                    )
+                    val expensesViewModel: ExpenseViewModel = viewModel(
+                        viewModelStoreOwner = balanceOwner,
+                        factory = remember(groupId, localDatabase, user.id) {
+                            viewModelFactory {
+                                initializer { ExpenseViewModel(user.id, groupId,
+                                    LocalBalanceRepository(localDatabase) { accountProvider.value() },
+                                    removal = LocalExpenseRemoval(localDatabase) { accountProvider.value() },
+                                    receipts = ReceiptRepository(applicationContext, localDatabase, { accountProvider.value() })) }
                             }
                         }
                     )
@@ -171,7 +190,7 @@ fun AppShell(
                             }
                         }
                     )
-                    GroupDetailRoute(groups, groupId, membersViewModel, balancesViewModel,
+                    GroupDetailRoute(groups, groupId, membersViewModel, balancesViewModel, expensesViewModel,
                         onBack = { openGroupId = null }, modifier = contentModifier)
                 }
                 else -> when (selected) {
@@ -180,26 +199,29 @@ fun AppShell(
                             viewModelStoreOwner = owner,
                             factory = remember(user.id) {
                                 viewModelFactory {
-                                    initializer { HomeViewModel(groups.groupsFlow.map { HomeData(user, it) }) }
+                                    initializer { HomeViewModel(dashboard.observeHomeData(user), dashboard.settlementActions) }
                                 }
                             }
                         )
-                        HomeRoute(
+                        Column(contentModifier) {
+                            cloudReadError?.let { Text(it, Modifier.padding(AppSpacing.Space16), style = AppTypography.Caption, color = AppColors.Ink600) }
+                            HomeRoute(
                             homeViewModel,
                             onOpenActivity = { selected = AppTab.Activity },
                             onOpenGroups = { selected = AppTab.Groups },
                             onCreateGroup = createGroup,
                             onJoinGroup = { selected = AppTab.Groups },
                             onOpenGroup = openGroup,
-                            modifier = contentModifier
+                            modifier = Modifier.weight(1f)
                         )
+                        }
                     }
                     AppTab.Groups -> {
                         val groupsViewModel: GroupsViewModel = viewModel(
                             viewModelStoreOwner = owner,
                             factory = remember(user.id) {
                                 viewModelFactory {
-                                    initializer { GroupsViewModel(groups.repository.observeGroupsList(), groups.repository) }
+                                    initializer { GroupsViewModel(groups.repository.observeGroupsList(dashboard.observeHomeData(user).map { home -> home.finances?.balancesByGroup?.mapValues { it.value.netBalanceCents } }), groups.repository) }
                                 }
                             }
                         )

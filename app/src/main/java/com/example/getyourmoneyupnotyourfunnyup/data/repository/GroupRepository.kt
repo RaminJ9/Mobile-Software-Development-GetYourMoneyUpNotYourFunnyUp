@@ -447,7 +447,7 @@ class GroupRepository(
 
     private fun enqueue(action: SyncAction, groupId: String, payload: String) {
         val id = syncQueueDao.enqueue(
-            SyncQueueEntity(entityType = SyncEntityType.GROUP, entityId = groupId, action = action, payloadJson = payload)
+            SyncQueueEntity(entityType = SyncEntityType.GROUP, entityId = groupId, action = action, payloadJson = SyncPayloadJson.encode(SyncPayloadJson.decodeObject(payload) + ("queuedBy" to account.id)))
         )
         check(id != -1L) { "Couldn't queue the change for syncing" }
     }

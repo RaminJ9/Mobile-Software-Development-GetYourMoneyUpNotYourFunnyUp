@@ -37,6 +37,11 @@ class AuthRepository(
     private val ioScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
+    private fun reconcileEmail(user: UserEntity): UserEntity {
+        val authenticated = auth.currentUser?.takeIf { it.uid == user.id } ?: return user
+        return userDao.reconcileAuthenticatedEmail(user.id, authenticated.email.orEmpty())
+    }
+
     val currentAuthUid: String?
         get() = auth.currentUser?.uid
 
@@ -171,7 +176,7 @@ class AuthRepository(
         ioScope.launch {
             val pending = userDao.getUserById(uid)?.takeIf { it.syncStatus != SyncStatus.SYNCED }
             if (pending != null) {
-                onResult(Result.success(pending.toDomain()))
+                onResult(Result.success(reconcileEmail(pending).toDomain()))
                 return@launch
             }
             fetchRemoteUserDocument(uid, fallbackEmail, fallbackName, onResult)
@@ -195,7 +200,7 @@ class AuthRepository(
                         fallbackName = fallbackName
                     )
                     ioScope.launch {
-                        val cached = userDao.cacheRemoteUser(UserEntity.fromDomain(user))
+                        val cached = reconcileEmail(userDao.cacheRemoteUser(UserEntity.fromDomain(user)))
                         onResult(Result.success(cached.toDomain()))
                     }
                 } else {
@@ -231,7 +236,7 @@ class AuthRepository(
                 ioScope.launch {
                     val cached = userDao.getUserById(uid)?.toDomain()
                     if (cached != null) {
-                        onResult(Result.success(cached))
+                        onResult(Result.success(reconcileEmail(UserEntity.fromDomain(cached)).toDomain()))
                     } else {
                         val offlineUser = User(
                             id = uid,
@@ -271,7 +276,7 @@ class AuthRepository(
                         fallbackName = fallbackName
                     )
                     ioScope.launch {
-                        userDao.cacheRemoteUser(UserEntity.fromDomain(remoteUser))
+                        reconcileEmail(userDao.cacheRemoteUser(UserEntity.fromDomain(remoteUser)))
                     }
                 }
             }

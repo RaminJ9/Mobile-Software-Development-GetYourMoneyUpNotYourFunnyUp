@@ -174,4 +174,33 @@ class PayVmTest {
         assertEquals(InlineActionState.Done(SyncStatus.SYNCED), model.success().payments.single().action)
         assertEquals(1, service.ids.size)
     }
+    @Test fun sameAmountFromChangedLedgerGetsFreshConfirmationReference() = runTest(dispatcher) {
+        val source = MutableStateFlow(ledger()); val service = Payments(); val model = vm(source, service)
+        val old = model.success().payments.single().id; model.askPayment(old)
+        val e = source.value.expenses.single()
+        source.value = source.value.copy(expenses = listOf(e.copy(id = "new", splits = e.splits.map { it.copy(expenseId = "new") })))
+        val fresh = model.success().payments.single()
+        assertNotEquals(old, fresh.id); assertEquals(InlineActionState.Idle, fresh.action)
+        model.confirmPayment(old); assertTrue(service.ids.isEmpty())
+    }
+
+    @Test fun reminderDeduplicatesTapsAndKeepsObservedServerAcknowledgement() = runTest(dispatcher) {
+        val original = ledger()
+        val source = MutableStateFlow(original.copy(expenses = original.expenses.map { it.copy(payerId = "you", createdBy = "you") }))
+        val gate = CompletableDeferred<Unit>(); var calls = 0
+        var reminder: Reminder? = null
+        val service = ReminderRepository { _, group, transfer, id ->
+            calls++
+            val pending = Reminder("reminder-$id", group, transfer.debtorId, transfer.creditorId, transfer.amountCents, transfer.currency, id, 1)
+            reminder = pending; gate.await(); pending
+        }
+        val model = BalanceViewModel("you", "g", BalanceRepository { _, _ -> source }, dispatcher, reminderRepository = service)
+        val id = model.success().payments.single().id
+        model.remind(id); model.remind(id); assertEquals(1, calls)
+        source.value = source.value.copy(reminders = listOf(reminder!!.copy(syncStatus = SyncStatus.SYNCED)))
+        gate.complete(Unit)
+        assertEquals(InlineActionState.Done(SyncStatus.SYNCED), model.success().reminderStates[id])
+        model.remind(id); assertEquals(1, calls)
+    }
+
 }

@@ -22,6 +22,11 @@ class ProfileViewModelTest {
     private class FakeRepository(initial: User) : ProfileRepository {
         val users = MutableStateFlow<User?>(initial)
         var saves = 0
+        val emailRequests = mutableListOf<String>()
+        override suspend fun requestEmailChange(userId: String, email: String) {
+            error?.let { throw IllegalStateException(it) }
+            emailRequests += email
+        }
         var error: String? = null
         var gate: CompletableDeferred<Unit>? = null
         override fun observeProfile(userId: String) = users
@@ -115,4 +120,21 @@ class ProfileViewModelTest {
         assertFalse(vm.state.value.saved)
         assertEquals(user, vm.state.value.user)
     }
+    @Test fun emailChangeRequestsVerificationWithoutPretendingEmailAlreadyChanged() = runTest(dispatcher) {
+        val repo = FakeRepository(user); val vm = ProfileViewModel(user, repo)
+        vm.edit(); vm.setEmail(" new@test.dk "); vm.saveDetails()
+        assertEquals(listOf("new@test.dk"), repo.emailRequests)
+        assertEquals(user.email, vm.state.value.user.email)
+        assertTrue(vm.state.value.infoMessage!!.contains("Verification link sent"))
+        assertNull(vm.state.value.draft)
+    }
+    @Test fun invalidEmailOrVerificationFailureKeepsDraftAndDoesNotSave() = runTest(dispatcher) {
+        val repo = FakeRepository(user); val vm = ProfileViewModel(user, repo)
+        vm.edit(); vm.setEmail("bad address"); vm.saveDetails()
+        assertEquals(0, repo.saves); assertTrue(repo.emailRequests.isEmpty())
+        vm.setEmail("new@test.dk"); repo.error = "Log in again"; vm.saveDetails()
+        assertEquals(0, repo.saves); assertNotNull(vm.state.value.draft)
+        assertEquals("Log in again", vm.state.value.errorMessage)
+    }
+
 }

@@ -78,8 +78,28 @@ class AppShellTest {
         compose.onNodeWithText("Pay 50,00 kr").assertDoesNotExist()
     }
 
+    @Test fun savedExpenseCanBeOpenedFromGroupActivityAndDismissedBackToLedger() {
+        seedGroup(withExpense = true)
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme {
+            if (visible.value) AppShell(user, {}, database = database, currentAccountId = { user.id })
+        } }
+        compose.onNodeWithContentDescription("Groups tab").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Trip").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Trip").performClick()
+        compose.onNodeWithText("Activity").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithTag("expense-e").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("expense-e").performScrollTo().performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Expense details").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Member shares").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Ramin (You)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Close").performScrollTo().performClick()
+        compose.onNodeWithTag("expense-e").assertExists()
+        assertEquals(10000L, database.expenseDao.getExpenseById("e")!!.amountCents)
+        assertTrue(database.syncQueueDao.getAllPending().isEmpty())
+    }
+
     @Test fun startsOnHomeAndExposesGroupsAndRemainingUnavailableDestinations() {
-        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme { if (visible.value) AppShell(user, {}, database = database) } }
+        compose.setContent { GetYourMoneyUpNotYourFunnyUpTheme { if (visible.value) AppShell(user, {}, database = database, currentAccountId = { user.id }) } }
         compose.waitUntil(10000) { compose.onAllNodesWithText("Hi, Ramin").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Home tab").assertIsSelected()
         compose.onNodeWithText("Hi, Ramin").assertExists()
@@ -90,8 +110,7 @@ class AppShellTest {
         compose.onNodeWithContentDescription("Scan tab").performClick()
         compose.onNodeWithText("Receipt scanning is not connected yet.").assertExists()
         compose.onNodeWithContentDescription("Activity tab").performClick()
-        compose.onNodeWithText("Activity history unavailable").assertExists()
-        compose.onNodeWithText("No activity yet").assertDoesNotExist()
+        compose.onNodeWithText("No activity yet").assertExists()
         compose.onNodeWithContentDescription("Profile tab").performClick()
         compose.onNodeWithText(user.email).assertExists()
     }
@@ -101,7 +120,7 @@ class AppShellTest {
         var loggedOut = false
         compose.setContent {
             GetYourMoneyUpNotYourFunnyUpTheme {
-                if (visible.value && signedIn.value) AppShell(user, { loggedOut = true; signedIn.value = false }, database = database)
+                if (visible.value && signedIn.value) AppShell(user, { loggedOut = true; signedIn.value = false }, database = database, currentAccountId = { user.id })
             }
         }
         compose.onNodeWithContentDescription("Profile tab").performClick()

@@ -2,6 +2,7 @@ package com.example.getyourmoneyupnotyourfunnyup.data.local.dao
 
 import android.content.ContentValues
 import android.database.Cursor
+import androidx.core.database.sqlite.transaction
 import com.example.getyourmoneyupnotyourfunnyup.data.local.AppDatabase
 import com.example.getyourmoneyupnotyourfunnyup.data.local.Converters
 import com.example.getyourmoneyupnotyourfunnyup.data.local.DatabaseContract.UsersTable
@@ -63,7 +64,7 @@ class UserDao(private val database: AppDatabase) {
                 updatedAt = maxOf(System.currentTimeMillis(), Math.addExact(previous.updatedAt, 1L))
             )
             check(db.update(UsersTable.TABLE_NAME, next.toContentValues(), "${UsersTable.COL_ID} = ?", arrayOf(userId)) == 1)
-            val payload = JSONObject(UserDocumentMapper.profileUpdateMap(next.toDomain())).toString()
+            val payload = JSONObject(UserDocumentMapper.profileUpdateMap(next.toDomain()) + ("queuedBy" to userId)).toString()
             val values = ContentValues().apply {
                 put(SyncQueueTable.COL_ENTITY_TYPE, "USER")
                 put(SyncQueueTable.COL_ENTITY_ID, userId)
@@ -75,6 +76,26 @@ class UserDao(private val database: AppDatabase) {
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
+        }
+        database.notifyTableChanged(UsersTable.TABLE_NAME, SyncQueueTable.TABLE_NAME)
+        return result
+    }
+
+    /** Only call with the email returned by the authenticated Firebase user, never a profile draft. */
+    internal fun reconcileAuthenticatedEmail(userId: String, email: String): UserEntity {
+        val result = database.writableDatabase.transaction {
+            val previous = requireNotNull(getUserById(userId))
+            if (email.isBlank() || previous.email == email) previous else {
+                val next = previous.copy(email = email, syncStatus = SyncStatus.PENDING_UPDATE,
+                    updatedAt = maxOf(System.currentTimeMillis(), Math.addExact(previous.updatedAt, 1L)))
+                check(update(UsersTable.TABLE_NAME, next.toContentValues(), "id = ?", arrayOf(userId)) == 1)
+                insertOrThrow(SyncQueueTable.TABLE_NAME, null, ContentValues().apply {
+                    put(SyncQueueTable.COL_ENTITY_TYPE, "USER"); put(SyncQueueTable.COL_ENTITY_ID, userId)
+                    put(SyncQueueTable.COL_ACTION, "UPDATE")
+                    put(SyncQueueTable.COL_PAYLOAD_JSON, JSONObject(UserDocumentMapper.toMap(next.toDomain()) + ("queuedBy" to userId)).toString())
+                })
+                next
+            }
         }
         database.notifyTableChanged(UsersTable.TABLE_NAME, SyncQueueTable.TABLE_NAME)
         return result
