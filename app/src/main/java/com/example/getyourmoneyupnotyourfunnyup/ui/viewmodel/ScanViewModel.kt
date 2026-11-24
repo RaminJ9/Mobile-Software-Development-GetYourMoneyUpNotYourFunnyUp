@@ -51,6 +51,9 @@ data class AvatarUi(val initial: String, val paletteIndex: Int)
 data class ScanGroupUi(val id: String, val name: String, val avatar: AvatarUi)
 
 @Immutable
+data class RuleNoticeUi(val avatar: AvatarUi, val text: String)
+
+@Immutable
 data class PayerUi(val id: String, val name: String, val avatar: AvatarUi, val selected: Boolean)
 
 enum class ItemTag(val label: String) {
@@ -128,8 +131,8 @@ data class ScanUiState(
     /** [receiptTotalText] as an amount; null for typed-in expenses or when no total is known. */
     val receiptTotalCents: Long?,
     val people: List<SplitPersonUi>,
-    val ruleNotice: String?,
-    val ruleAvatar: AvatarUi?,
+    /** One note for each person a diet rule took off items ("Sofie doesn't eat meat …"). */
+    val ruleNotices: List<RuleNoticeUi>,
     val splitItems: List<SplitItemUi>,
     val extrasNote: String?,
     val shares: List<ShareUi>,
@@ -231,20 +234,29 @@ fun buildScanUiState(
     val total = local.items.sumOf { it.priceCents }
     val shares = if (group == null) emptyMap() else ReceiptSplitter.shares(local.items, members, local.overrides, local.excluded, payerId)
 
-    // Diet-rule notice: the first person automatically taken off items.
+    // Diet-rule notices: one for each person automatically taken off items.
     val regular = local.items.filterNot { it.sharedByShare }
-    val ruled = active.firstNotNullOfOrNull { person ->
+    val ruleNotices = active.filter { it.hasDietRule }.mapNotNull { person ->
         // Items the diet rule took this person off, and nobody has added them back to.
         val removed = regular.filter { item ->
             person.id !in ReceiptSplitter.defaultSharers(item, members) &&
                 person.id !in ReceiptSplitter.sharers(item, members, local.overrides, local.excluded)
         }
-        if (removed.isNotEmpty() && person.hasDietRule) Triple(person, removed.size, removed.any { it.isAlcohol && person.excludeAlcohol }) else null
-    }
-    val ruleNotice = ruled?.let { (person, count, alcohol) ->
-        val why = if (alcohol) "doesn't drink alcohol" else "doesn't eat meat"
-        val items = if (count == 1) "1 item" else "$count items"
-        "${person.name} $why and was taken off $items. Tap ${person.name}'s circle on an item to add them back."
+        if (removed.isEmpty()) return@mapNotNull null
+        val alcohol = removed.any { it.isAlcohol && person.excludeAlcohol }
+        val meat = removed.any { it.isMeat && person.excludeMeat }
+        val what = when {
+            alcohol && meat -> "drink alcohol or eat meat"
+            alcohol -> "drink alcohol"
+            else -> "eat meat"
+        }
+        val items = if (removed.size == 1) "1 item" else "${removed.size} items"
+        val text = if (person.id == me) {
+            "You don't $what and were taken off $items. Tap your circle on an item to add yourself back."
+        } else {
+            "${person.name} doesn't $what and was taken off $items. Tap ${person.name}'s circle on an item to add them back."
+        }
+        RuleNoticeUi(person.avatarFor(me), text)
     }
 
     val splitItems = regular.map { item ->
@@ -320,6 +332,7 @@ fun buildScanUiState(
                     // A typed negative line is split like a discount, so it is labelled as one.
                     item.kind == ReceiptItemKind.DISCOUNT || item.priceCents < 0 -> ItemTag.Discount
                     item.isAlcohol -> ItemTag.Alcohol
+                    item.isMeat -> ItemTag.Meat
                     item.lowConfidence -> ItemTag.CheckPrice
                     else -> null
                 },
@@ -333,8 +346,7 @@ fun buildScanUiState(
         people = members.map {
             SplitPersonUi(it.id, nameFor(it.id), it.avatarFor(me), it.id !in local.excluded, canToggle = it.id != me)
         },
-        ruleNotice = ruleNotice,
-        ruleAvatar = ruled?.first?.avatarFor(me),
+        ruleNotices = ruleNotices,
         splitItems = splitItems,
         extrasNote = extrasNote,
         shares = active.map { ShareUi(nameFor(it.id), shares[it.id] ?: 0L, it.id == me) },

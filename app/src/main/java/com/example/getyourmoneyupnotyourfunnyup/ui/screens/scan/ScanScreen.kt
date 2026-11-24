@@ -893,14 +893,12 @@ private fun SplitStep(state: ScanUiState, onAction: (ScanAction) -> Unit) {
                             repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
-                    state.ruleNotice?.let { notice ->
+                    state.ruleNotices.forEach { notice ->
                         Notice(
                             tone = NoticeTone.Rule,
-                            leading = {
-                                state.ruleAvatar?.let { PaletteAvatar(it.initial, it.paletteIndex, size = 28.dp) }
-                            },
+                            leading = { PaletteAvatar(notice.avatar.initial, notice.avatar.paletteIndex, size = 28.dp) },
                         ) {
-                            Text(notice, style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp), color = AppColors.Lavender800)
+                            Text(notice.text, style = jakarta(14, FontWeight.Medium, lineHeight = 20.sp), color = AppColors.Lavender800)
                         }
                     }
                 }
