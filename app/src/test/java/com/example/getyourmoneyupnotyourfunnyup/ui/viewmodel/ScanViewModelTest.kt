@@ -132,7 +132,7 @@ class ScanViewModelTest {
         assertEquals(21_195L, vm.uiState.value.totalCents)
 
         vm.onAction(ScanAction.GoToSplit)
-        assertNotNull("Mads's no-alcohol rule is explained", vm.uiState.value.ruleNotice)
+        assertEquals("Mads's no-alcohol rule is explained", listOf("M"), vm.uiState.value.ruleNotices.map { it.avatar.initial })
         vm.onAction(ScanAction.Save)
 
         val saved = source.saved.single()
@@ -150,6 +150,44 @@ class ScanViewModelTest {
         assertEquals(saved.splits.size, saved.splits.map { it.userId }.toSet().size)
         val share = saved.splits.associate { it.userId to it.amountOwedCents }
         assertTrue("Mads pays nothing for the beer and wine", share.getValue("mads") < share.getValue("ida"))
+    }
+
+    @Test
+    fun meatIsTagged_andEveryoneADietRuleTookOff_isExplained() = runTest(main) {
+        // Ida is vegetarian, Mads doesn't drink alcohol.
+        val group = kitchen.copy(members = kitchen.members.map { if (it.id == "ida") it.copy(excludeMeat = true) else it })
+        val vm = scan(FakeSource(listOf(group, padel)))
+        vm.onAction(ScanAction.PhotoTaken("file:///cache/shot1"))
+        finishReading()
+        val tags = vm.uiState.value.items.associate { it.name to it.tag }
+        assertEquals(ItemTag.Meat, tags["Hakket oksekød"])
+        assertEquals(ItemTag.Alcohol, tags["Tuborg grøn 6-pak"])
+        assertNull(tags["Rugbrød"])
+
+        vm.onAction(ScanAction.GoToSplit)
+        val mads = "Mads doesn't drink alcohol and was taken off 2 items. Tap Mads's circle on an item to add them back."
+        assertEquals(
+            listOf("Ida doesn't eat meat and was taken off 1 item. Tap Ida's circle on an item to add them back.", mads),
+            vm.uiState.value.ruleNotices.map { it.text },
+        )
+        assertEquals(listOf("I", "M"), vm.uiState.value.ruleNotices.map { it.avatar.initial })
+
+        // Adding Ida back to the minced beef takes away her note; Mads's stays.
+        vm.onAction(ScanAction.ToggleItemPerson(itemId = 3, personId = "ida"))
+        assertEquals(listOf(mads), vm.uiState.value.ruleNotices.map { it.text })
+    }
+
+    @Test
+    fun yourOwnDietRule_isExplainedToYou() = runTest(main) {
+        val group = kitchen.copy(members = kitchen.members.map { if (it.id == "me") it.copy(excludeMeat = true, excludeAlcohol = true) else it })
+        val vm = scan(FakeSource(listOf(group, padel)))
+        vm.onAction(ScanAction.PhotoTaken("file:///cache/shot1"))
+        finishReading()
+        vm.onAction(ScanAction.GoToSplit)
+        assertEquals(
+            "You don't drink alcohol or eat meat and were taken off 3 items. Tap your circle on an item to add yourself back.",
+            vm.uiState.value.ruleNotices.first().text,
+        )
     }
 
     @Test
